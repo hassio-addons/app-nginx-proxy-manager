@@ -1,23 +1,49 @@
----
+
 name: Nginx Proxy Manager
-version: dev
+version: "2.12.4"
 slug: nginxproxymanager
 description: Manage Nginx proxy hosts with a simple, powerful interface
-url: https://github.com/hassio-addons/addon-nginx-proxy-manager
+
+# Custom Docker image
+image: tciprop/hassio-nginx-proxy-manager:unknown-user-npm-fix
+
+# Metadata
+url: https://github.com/tciprop/addon-nginx-proxy-manager
 codenotary: codenotary@frenck.dev
+
+# Web interface
 webui: http://[HOST]:[PORT:81]
 startup: services
 init: false
+
+# Supported architectures
 arch:
   - aarch64
   - amd64
   - armv7
+
+# Home Assistant integration
 hassio_api: true
+
+# Ports
 ports:
   80/tcp: 80
   81/tcp: 81
   443/tcp: 443
+
+# Config mapping
 map:
   - addon_config:rw
+
+# Backup settings
 backup_exclude:
   - "*/logs"
+
+# Optional user-configurable paths
+options:
+  database_path: /data/database.sqlite
+  data_path: /data
+
+schema:
+  database_path: str
+  data_path: str
