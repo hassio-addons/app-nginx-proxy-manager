@@ -76,7 +76,8 @@ RUN \
     && cp /app/docker/rootfs/etc/letsencrypt.ini /etc \
     && cp /app/docker/rootfs/etc/logrotate.d/nginx-proxy-manager /etc/logrotate.d \
     \
-    && sed -i "s#user npm;#user root;#" /etc/nginx/nginx.conf \
+    && addgroup -S npm \
+    && adduser -S -G npm npm \
     && sed -i "s#root /app/frontend;#root /opt/nginx-proxy-manager/frontend;#" \
         /etc/nginx/conf.d/production.conf \
     && sed -i "s#table.string('id').notNull().primary();#table.string('id', 32).notNull().primary();#" \
