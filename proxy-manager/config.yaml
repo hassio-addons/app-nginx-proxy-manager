@@ -2,8 +2,8 @@
 name: Nginx Proxy Manager
 version: dev
 slug: nginxproxymanager
-description: Manage Nginx proxy hosts with a simple, powerful interface
-url: https://github.com/hassio-addons/addon-nginx-proxy-manager
+description: Phil's Experimental NPM
+url: https://github.com/tciprop/addon-nginx-proxy-manager
 codenotary: codenotary@frenck.dev
 webui: http://[HOST]:[PORT:81]
 startup: services
