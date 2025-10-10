@@ -1,1 +1,28 @@
+/data/logs/*_access.log /data/logs/*/access.log {
+    su root root
+    create 0640 root root
+    missingok
+    rotate 12
+    weekly
+    compress
+    delaycompress
+    sharedscripts
+    postrotate
+        nginx -s reopen
+    endscript
+}
+
+/data/logs/*_error.log /data/logs/*/error.log {
+    su root root
+    create 0640 root root
+    missingok
+    rotate 12
+    weekly
+    compress
+    delaycompress
+    sharedscripts
+    postrotate
+        nginx -s reopen
+    endscript
+}
 
