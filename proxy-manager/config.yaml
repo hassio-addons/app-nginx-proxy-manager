@@ -1,6 +1,6 @@
 ---
 name: Nginx Proxy Manager Experimental
-version: dev
+version: "1.1"
 slug: nginxproxymanagerexperimental
 description: Phils Experimental NPM
 url: https://github.com/tciprop/addon-nginx-proxy-manager
