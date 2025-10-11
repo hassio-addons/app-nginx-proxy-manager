@@ -1,7 +1,7 @@
 ---
 name: UNOFFICIAL Nginx Proxy Manager
 version: 0.0.1-logrotate
-slug: nginx_proxy_manager_experimental
+slug: proxy_manager_experimental
 description: Modified Nginx Proxy Manager with logrotate fix
 url: https://github.com/tciprop/addon-nginx-proxy-manager#logrotate_issue
 webui: http://[HOST]:[PORT:81]
