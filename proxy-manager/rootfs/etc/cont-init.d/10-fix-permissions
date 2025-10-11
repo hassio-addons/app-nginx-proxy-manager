@@ -1,0 +1,8 @@
+#!/usr/bin/with-contenv bashio
+# Ensure correct permissions for the logrotate configuration
+if [ -f /etc/logrotate.d/nginx-proxy-manager ]; then
+    chmod 644 /etc/logrotate.d/nginx-proxy-manager
+    bashio::log.info "Set permissions to 644 for /etc/logrotate.d/nginx-proxy-manager"
+else
+    bashio::log.warning "/etc/logrotate.d/nginx-proxy-manager not found at startup"
+fi
