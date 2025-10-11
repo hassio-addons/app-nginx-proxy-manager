@@ -14,26 +14,26 @@ COPY patches/*.patch /usr/src/
 ARG NGINX_PROXY_MANAGER_VERSION="v2.12.4"
 RUN \
     apk add --no-cache --virtual .build-dependencies \
-        build-base=0.5-r3 \
-        git=2.49.1-r0 \
-        libffi-dev=3.4.8-r0 \
-        openssl-dev=3.5.4-r0 \
-        patch=2.8-r0 \
-        python3-dev=3.12.11-r0 \
+        build-base \
+        git \
+        libffi-dev \
+        openssl-dev \
+        patch \
+        python3-dev \
     \
     && apk add --no-cache \
-        apache2-utils=2.4.65-r0 \
-        certbot=4.0.0-r0 \
-        libcap=2.76-r0 \
-        logrotate=3.21.0-r1 \
-        nginx-mod-stream=1.28.0-r3 \
-        nginx=1.28.0-r3 \
-        nodejs=22.16.0-r2 \
-        npm=11.3.0-r1 \
-        openssl=3.5.4-r0 \
-        py3-pip=25.1.1-r0 \
-        python3=3.12.11-r0 \
-        yarn=1.22.22-r1 \
+        apache2-utils \
+        certbot \
+        libcap \
+        logrotate \
+        nginx-mod-stream \
+        nginx \
+        nodejs \
+        npm \
+        openssl \
+        py3-pip \
+        python3 \
+        yarn \
     \
     && yarn global add modclean \
     \
