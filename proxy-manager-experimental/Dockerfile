@@ -44,8 +44,10 @@ RUN \
         /tmp/nginxproxymanager.tar.gz \
         --strip 1 -C /app \
     \
-    && for i in /usr/src/*.patch; do \
-        patch -d /app -p 1 < "${i}"; done \
+    && for i in /usr/src/patches/*.patch; do \
+        [ -e "$i" ] || continue; \
+    patch -d /app -p 1 < "$i"; \
+    done \
     \
     && cd /app/frontend \
     && yarn install --ignore-engines --network-timeout 100000 \
