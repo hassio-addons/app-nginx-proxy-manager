@@ -1,8 +1,8 @@
 ---
-name: Nginx Proxy Manager Experimental
-version: "1.4"
-slug: nginxproxymanagerexperimental
-description: Phils logrotate_issue branch of tciprop fork
+name: UNOFFICIAL Nginx Proxy Manager
+version: 0.0.1-logrotate
+slug: nginxproxymanager
+description: Modified Nginx Proxy Manager with logrotate fix
 url: https://github.com/hassio-addons/addon-nginx-proxy-manager
 codenotary: codenotary@frenck.dev
 webui: http://[HOST]:[PORT:81]
@@ -14,6 +14,13 @@ arch:
   - armv7
 hassio_api: true
 ports:
+  80/tcp: 80
+  81/tcp: 81
+  443/tcp: 443
+map:
+  - addon_config:rw
+backup_exclude:
+  - "*/logs"
   80/tcp: 80
   81/tcp: 81
   443/tcp: 443
