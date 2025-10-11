@@ -1,8 +1,31 @@
 #!/usr/bin/with-contenv bashio
 # Ensure correct permissions for the logrotate configuration
-if [ -f /etc/logrotate.d/nginx-proxy-manager ]; then
-    chmod 644 /etc/logrotate.d/nginx-proxy-manager
-    bashio::log.info "Set permissions to 644 for /etc/logrotate.d/nginx-proxy-manager"
-else
-    bashio::log.warning "/etc/logrotate.d/nginx-proxy-manager not found at startup"
-fi
+LOGROTATE_FILE="/etc/logrotate.d/nginx-proxy-manager"
+
+if [ -f "$LOGROTATE_FILE" ]; then
+    # Set ownership to root:root
+    if ! chown root:root "$LOGROTATE_FILE"; then
+        bashio::log.error "Failed to set ownership for $LOGROTATE_FILE"
+        exit 1
+    fi
+    
+    # Set permissions to 644
+    if ! chmod 644 "$LOGROTATE_FILE"; then
+        bashio::log.error "Failed to set permissions for $LOGROTATE_FILE"
+        exit 1
+    fi
+    
+    # Verify the changes
+    ACTUAL_PERMS=$(stat -c '%a' "$LOGROTATE_FILE")
+    ACTUAL_OWNER=$(stat -c '%U:%G' "$LOGROTATE_FILE")
+    
+    if [ "$ACTUAL_PERMS" != "644" ] || [ "$ACTUAL_OWNER" != "root:root" ]; then
+        bashio::log.error "Verification failed: expected 644/root:root, got $ACTUAL_PERMS/$ACTUAL_OWNER"
+        exit 1
+    fi
+    
+    bashio::log.info "Set permissions to 644 and ownership to root:root for $LOGROTATE_FILE"
+ else
+    bashio::log.error "$LOGROTATE_FILE not found at startup"
+    exit 1
+ fi
