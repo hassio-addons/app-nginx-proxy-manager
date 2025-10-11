@@ -113,7 +113,9 @@ RUN \
 COPY rootfs /
 
 # Ensure executable permissions for s6-overlay and cont-init.d scripts
-RUN chmod +x /etc/s6-overlay/s6-rc.d/*/run /etc/s6-overlay/s6-rc.d/*/up /etc/s6-overlay/s6-rc.d/*/finish /etc/cont-init.d/*
+RUN \
+find /etc/s6-overlay/s6-rc.d -type f \( -name run -o -name up -o -name finish \) -exec chmod 0755 {} + 2>/dev/null || true && \
+find /etc/cont-init.d -type f -exec chmod 0755 {} + 2>/dev/null || true
 
 # Build arguments
 ARG BUILD_ARCH
