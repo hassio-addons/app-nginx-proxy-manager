@@ -1,8 +1,8 @@
 ---
-name: Nginx Proxy Manager
-version: dev
-slug: nginxproxymanager
-description: Manage Nginx proxy hosts with a simple, powerful interface
+name: Nginx Proxy Manager Experimental
+version: "1.4"
+slug: nginxproxymanagerexperimental
+description: Phils logrotate_issue branch of tciprop fork
 url: https://github.com/hassio-addons/addon-nginx-proxy-manager
 codenotary: codenotary@frenck.dev
 webui: http://[HOST]:[PORT:81]
