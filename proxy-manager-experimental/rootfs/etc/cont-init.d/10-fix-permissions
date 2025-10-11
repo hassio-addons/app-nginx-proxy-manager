@@ -13,7 +13,15 @@ if [ -f "$LOGROTATE_FILE" ]; then
         bashio::log.error "Failed to set permissions for $LOGROTATE_FILE"
         exit 1
     fi
-    bashio::log.info "Set ownership to root:root and permissions to 644 for $LOGROTATE_FILE"
+    # Verify the changes were applied correctly
+    ACTUAL_PERMS=$(stat -c '%a' "$LOGROTATE_FILE")
+    ACTUAL_OWNER=$(stat -c '%U:%G' "$LOGROTATE_FILE")
+    
+    if [ "$ACTUAL_PERMS" != "644" ] || [ "$ACTUAL_OWNER" != "root:root" ]; then
+        bashio::log.error "Verification failed for $LOGROTATE_FILE: expected 644/root:root, got $ACTUAL_PERMS/$ACTUAL_OWNER"
+        exit 1
+    fi   
+    bashio::log.info "Successfully set ownership to root:root and permissions to 644 for $LOGROTATE_FILE"
 else
     bashio::log.warning "$LOGROTATE_FILE not found at startup"
 fi
