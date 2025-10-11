@@ -7,8 +7,8 @@ ENV NODE_OPTIONS="--openssl-legacy-provider"
 # Set shell
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Copy patches (remove if patches/ is empty)
-COPY patches/*.patch /usr/src/
+# Copy patches directory (safe even if empty; ensure patches/ exists with a .gitkeep)
+COPY patches/ /usr/src/patches/
 
 # Setup base
 ARG NGINX_PROXY_MANAGER_VERSION="v2.12.4"
