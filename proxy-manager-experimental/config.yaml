@@ -7,7 +7,6 @@ url: https://github.com/tciprop/addon-nginx-proxy-manager#logrotate_issue
 webui: http://[HOST]:[PORT:81]
 startup: services
 init: false
-boot: auto
 arch:
   - aarch64
   - amd64
