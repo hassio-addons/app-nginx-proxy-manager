@@ -74,6 +74,7 @@ RUN \
     && rm -f /etc/nginx/conf.d/dev.conf \
     \
     && cp /app/docker/rootfs/etc/letsencrypt.ini /etc \
+    && cp /app/docker/rootfs/etc/logrotate.d/nginx-proxy-manager /etc/logrotate.d \
     \
     && sed -i "s#user npm;#user root;#" /etc/nginx/nginx.conf \
     && sed -i "s#root /app/frontend;#root /opt/nginx-proxy-manager/frontend;#" \
