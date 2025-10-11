@@ -1,5 +1,4 @@
 ARG BUILD_FROM=ghcr.io/hassio-addons/base:18.1.4
-# hadolint ignore=DL3006
 FROM ${BUILD_FROM}
 
 # Required for webpack config of NPM with Node.js 22
@@ -8,12 +7,11 @@ ENV NODE_OPTIONS="--openssl-legacy-provider"
 # Set shell
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Copy patches
+# Copy patches (remove if patches/ is empty)
 COPY patches/*.patch /usr/src/
 
 # Setup base
 ARG NGINX_PROXY_MANAGER_VERSION="v2.12.4"
-# hadolint ignore=DL3003,DL3042
 RUN \
     apk add --no-cache --virtual .build-dependencies \
         build-base=0.5-r3 \
@@ -74,7 +72,6 @@ RUN \
     && rm -f /etc/nginx/conf.d/dev.conf \
     \
     && cp /app/docker/rootfs/etc/letsencrypt.ini /etc \
-    && cp /app/docker/rootfs/etc/logrotate.d/nginx-proxy-manager /etc/logrotate.d \
     \
     && sed -i "s#user npm;#user root;#" /etc/nginx/nginx.conf \
     && sed -i "s#root /app/frontend;#root /opt/nginx-proxy-manager/frontend;#" \
@@ -115,6 +112,9 @@ RUN \
 # Copy root filesystem
 COPY rootfs /
 
+# Ensure executable permissions for s6-overlay and cont-init.d scripts
+RUN chmod +x /etc/s6-overlay/s6-rc.d/*/run /etc/s6-overlay/s6-rc.d/*/up /etc/s6-overlay/s6-rc.d/*/finish /etc/cont-init.d/*
+
 # Build arguments
 ARG BUILD_ARCH
 ARG BUILD_DATE
@@ -131,11 +131,11 @@ LABEL \
     io.hass.arch="${BUILD_ARCH}" \
     io.hass.type="addon" \
     io.hass.version=${BUILD_VERSION} \
-    maintainer="Franck Nijhof <frenck@addons.community>" \
+    maintainer="tciprop <buttonpd@gmail.com>" \
     org.opencontainers.image.title="${BUILD_NAME}" \
     org.opencontainers.image.description="${BUILD_DESCRIPTION}" \
     org.opencontainers.image.vendor="Home Assistant Community Add-ons" \
-    org.opencontainers.image.authors="Franck Nijhof <frenck@addons.community>" \
+    org.opencontainers.image.authors="tciprop <buttonpd@gmail.com>" \
     org.opencontainers.image.licenses="MIT" \
     org.opencontainers.image.url="https://addons.community" \
     org.opencontainers.image.source="https://github.com/${BUILD_REPOSITORY}" \
