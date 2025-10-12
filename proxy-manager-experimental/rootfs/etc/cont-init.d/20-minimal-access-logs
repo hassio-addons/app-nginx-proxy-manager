@@ -1,25 +1,39 @@
 #!/usr/bin/with-contenv bashio
-# Configure Nginx to use a concise access log format with HA suppression
-echo "[INFO] Enabling concise Nginx access logging with HA suppression..."
+# ------------------------------------------------------------------------------
+# 20-minimal-access-logs
+# Configure Nginx to use concise access logs while suppressing Home Assistant noise
+# ------------------------------------------------------------------------------
+
+echo "[INFO] Enabling concise Nginx access logging with HA noise suppression..."
 
 NGINX_CONF="/etc/nginx/nginx.conf"
 
-# Inject minimal format + HA noise filter using portable sed syntax
+# ------------------------------------------------------------------------------
+# Inject minimal log format and request suppression map
+# ------------------------------------------------------------------------------
 if [ -f "$NGINX_CONF" ]; then
-    # Add log_format if missing
-    grep -q "log_format minimal" "$NGINX_CONF" || \
+    # Define a minimal log format if not already present
+    if ! grep -q "log_format minimal" "$NGINX_CONF"; then
         sed -i '/http {/a\    log_format minimal '\''$remote_addr $host $status "$request" $request_time s'\'';' "$NGINX_CONF"
+    fi
 
-    # Add map for noisy HA URIs if missing
-    grep -q "map \$request_uri" "$NGINX_CONF" || \
-        sed -i '/http {/a\    map $request_uri $loggable {\n        default 1;\n        ~^/api/ping 0;\n        ~^/manifest\\.json 0;\n        ~^/static/ 0;\n        ~^/frontend_latest/ 0;\n        ~^/local/ 0;\n        ~^/media/ 0;\n    }' "$NGINX_CONF"
+    # Add a map that disables logging for common HA background endpoints
+    if ! grep -q "map \$request_uri" "$NGINX_CONF"; then
+        sed -i '/http {/a\    map $request_uri $loggable {\n        default 1;\n        ~^/api/ping 0;\n        ~^/api/websocket 0;\n        ~^/api/hassio_ingress/ 0;\n        ~^/api/events 0;\n        ~^/api/history 0;\n        ~^/api/logbook 0;\n        ~^/api/states 0;\n        ~^/auth/token 0;\n        ~^/auth/providers 0;\n        ~^/manifest\\.json 0;\n        ~^/service_worker\\.js 0;\n        ~^/static/ 0;\n        ~^/frontend_latest/ 0;\n        ~^/local/ 0;\n        ~^/media/ 0;\n    }' "$NGINX_CONF"
+    fi
+else
+    echo "[WARN] $NGINX_CONF not found — skipping direct nginx.conf patch."
 fi
 
-# Patch all template files to use conditional logging
+# ------------------------------------------------------------------------------
+# Patch all NPM template files to use the minimal format conditionally
+# ------------------------------------------------------------------------------
 if [ -d /app/templates ]; then
     find /app/templates -type f -name "*.conf" -exec \
         sed -i 's|access_log .*;|access_log /var/lib/nginx/logs/access.log minimal if=$loggable;|g' {} +
-    echo "[INFO] Updated access_log directives in templates (conditional logging)."
+    echo "[INFO] Updated access_log directives in templates (conditional minimal logging)."
 else
     echo "[WARN] /app/templates not found — skipping template patch."
 fi
+
+echo "[INFO] Minimal access logging with HA suppression applied successfully."
