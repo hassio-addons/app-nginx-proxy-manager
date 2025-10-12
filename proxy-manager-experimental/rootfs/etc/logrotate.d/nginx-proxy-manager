@@ -1,4 +1,4 @@
-/data/logs/*_access.log /data/logs/*/access.log {
+/var/lib/nginx/logs/*.log {
     su root root
     create 0640 root root
     missingok
@@ -8,20 +8,7 @@
     delaycompress
     sharedscripts
     postrotate
-        nginx -s reopen
-    endscript
-}
-
-/data/logs/*_error.log /data/logs/*/error.log {
-    su root root
-    create 0640 root root
-    missingok
-    rotate 12
-    weekly
-    compress
-    delaycompress
-    sharedscripts
-    postrotate
+        # Tell nginx to reopen its log files after rotation
         nginx -s reopen
     endscript
 }
