@@ -6,7 +6,7 @@ description: Modified Nginx Proxy Manager with logrotate fix
 url: https://github.com/tciprop/addon-nginx-proxy-manager#logrotate_issue
 webui: http://[HOST]:[PORT:81]
 startup: services
-init: false
+init: true
 arch:
   - aarch64
   - amd64
