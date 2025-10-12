@@ -25,35 +25,46 @@ if [ -f "$NGINX_CONF" ]; then
             echo "[ERROR] Failed to add log format to nginx.conf" >&2
             exit 1
         fi
+        # Verify insertion actually happened
+        if ! grep -q "log_format minimal" "$NGINX_CONF"; then
+            echo "[ERROR] log_format minimal not found after sed insertion - http block pattern may not match" >&2
+            exit 1
+        fi
     fi
 
     # Add suppression map if missing
     if ! grep -q 'map \$request_uri \$loggable' "$NGINX_CONF"; then
         if sed -i '/^[[:space:]]*http[[:space:]]*{/a\
-map $request_uri $loggable {\n\
-    default 1;\n\
-    ~^/api/ping 0;\n\
-    ~^/api/websocket 0;\n\
-    ~^/api/hassio_ingress/ 0;\n\
-    ~^/hassio_ingress/ 0;\n\
-    ~^/hassio_ingress/.*/api/calendars/ 0;\n\
-    ~^/api/events 0;\n\
-    ~^/api/history 0;\n\
-    ~^/api/logbook 0;\n\
-    ~^/api/states 0;\n\
-    ~^/api/calendars/ 0;\n\
-    ~^/auth/token 0;\n\
-    ~^/auth/providers 0;\n\
-    ~^/manifest\.json 0;\n\
-    ~^/service_worker\.js 0;\n\
-    ~^/static/ 0;\n\
-    ~^/frontend_latest/ 0;\n\
-    ~^/local/ 0;\n\
-    ~^/media/ 0;\n\
+    map $request_uri $loggable {\
+        default 1;\
+        ~^/api/ping 0;\
+        ~^/api/websocket 0;\
+        ~^/api/hassio_ingress/ 0;\
+        ~^/hassio_ingress/ 0;\
+        ~^/hassio_ingress/.*/api/calendars/ 0;\
+        ~^/api/events 0;\
+        ~^/api/history 0;\
+        ~^/api/logbook 0;\
+        ~^/api/states 0;\
+        ~^/api/calendars/ 0;\
+        ~^/auth/token 0;\
+        ~^/auth/providers 0;\
+        ~^/manifest\.json 0;\
+        ~^/service_worker\.js 0;\
+        ~^/static/ 0;\
+        ~^/frontend_latest/ 0;\
+        ~^/local/ 0;\
+        ~^/media/ 0;\
+    }\
 }' "$NGINX_CONF"; then
             echo "[INFO] Added request URI suppression map to nginx.conf"
         else
             echo "[ERROR] Failed to add suppression map to nginx.conf" >&2
+            exit 1
+        fi
+        # Verify insertion actually happened
+        if ! grep -q 'map \$request_uri \$loggable' "$NGINX_CONF"; then
+            echo "[ERROR] map not found after sed insertion - http block pattern may not match" >&2
             exit 1
         fi
     fi
@@ -68,7 +79,7 @@ if [ -d "$TEMPLATES_DIR" ]; then
     for tpl in "$TEMPLATES_DIR"/*.conf; do
         [ -f "$tpl" ] || continue
         if grep -q "access_log" "$tpl"; then
-            if sed -i 's|access_log .*;|access_log /var/lib/nginx/logs/access.log minimal if=$loggable;|g' "$tpl"; then
+            if sed -i 's|access_log /data/logs/[^;]*;|access_log /var/lib/nginx/logs/access.log minimal if=$loggable;|g' "$tpl"; then
                 echo "[INFO] Patched $(basename "$tpl") to use minimal logging with suppression"
             else
                 echo "[WARN] Failed to patch $(basename "$tpl")" >&2
@@ -90,8 +101,9 @@ else
     else
         echo "[ERROR] Invalid Nginx configuration detected after patching" >&2
         nginx -t
-        # Don't hard-fail here; let container proceed
         echo "[WARN] Continuing despite nginx syntax test failure (will revalidate later)"
+        echo "[WARN] Check logs carefully - nginx may fail to start"
+        sleep 3  # Brief pause to ensure error is visible in logs
     fi
 fi
 
