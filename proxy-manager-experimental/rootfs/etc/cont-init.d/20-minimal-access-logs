@@ -1,134 +1,39 @@
-#!/usr/bin/with-contenv bashio
-# ------------------------------------------------------------------------------
-# 20-minimal-access-logs
-# Configure Nginx to use concise access logs while suppressing Home Assistant noise
-# ------------------------------------------------------------------------------
+#!/usr/bin/with-contenv bash
+set -e
 
 echo "[INFO] Enabling concise Nginx access logging with HA noise suppression..."
 
-NGINX_CONF="/etc/nginx/nginx.conf"
+NGINX_CONF="/opt/nginx-proxy-manager/templates/nginx.conf"
+LOG_FORMAT="log_format minimal '\$remote_addr - \$remote_user [\$time_local] \"\$request\" \$status \$body_bytes_sent \"\$http_referer\" \"\$http_user_agent\"';"
+ACCESS_LOG="access_log /data/logs/nginx/access.log minimal;"
 
-# Ensure Nginx log directory exists
-mkdir -p /var/lib/nginx/logs
-
-# ------------------------------------------------------------------------------
-# Detect Nginx Proxy Manager template directory automatically
-# ------------------------------------------------------------------------------
-for path in \
-    /app/templates \
-    /usr/local/share/npm/templates \
-    /opt/nginx-proxy-manager/templates \
-    /usr/share/nginx-proxy-manager/templates \
-    /usr/src/app/templates; do
-    if [ -d "$path" ]; then
-        TEMPLATES_DIR="$path"
-        break
-    fi
-done
-
-if [ -z "$TEMPLATES_DIR" ]; then
-    echo "[WARN] Could not locate NPM template directory automatically."
-else
-    echo "[INFO] Detected template directory: $TEMPLATES_DIR"
+# Check if http block exists
+if ! grep -q '^[ \t]*http[ \t]*{' "$NGINX_CONF"; then
+    echo "[ERROR] Could not find http{} block in $NGINX_CONF"
+    exit 1
 fi
 
-# ------------------------------------------------------------------------------
-# Inject minimal log format and suppression map safely into http{} block
-# ------------------------------------------------------------------------------
-if [ -f "$NGINX_CONF" ]; then
-    # Add minimal log format if missing
-    if ! grep -q "log_format minimal" "$NGINX_CONF"; then
-        echo "[INFO] Inserting minimal log format inside http{} block..."
-        awk '
-            /^[[:space:]]*http[[:space:]]*{/ && !done {
-                print; print "    log_format minimal '\''$remote_addr $host $status \"$request\" $request_time s'\'';";
-                done=1; next
-            }
-            { print }
-        ' "$NGINX_CONF" > "${NGINX_CONF}.tmp" && mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
-        if grep -q "log_format minimal" "$NGINX_CONF"; then
-            echo "[INFO] Added minimal log format to nginx.conf"
-        else
-            echo "[ERROR] log_format minimal not found after insertion - check http block pattern" >&2
-            exit 1
-        fi
-    fi
-
-    # Add suppression map if missing
-    if ! grep -q 'map \$request_uri \$loggable' "$NGINX_CONF"; then
-        echo "[INFO] Inserting request URI suppression map inside http{} block..."
-        awk '
-            /^[[:space:]]*http[[:space:]]*{/ && !done {
-                print;
-                print "    map $request_uri $loggable {";
-                print "        default 1;";
-                print "        ~^/api/ping 0;";
-                print "        ~^/api/websocket 0;";
-                print "        ~^/api/hassio_ingress/ 0;";
-                print "        ~^/hassio_ingress/ 0;";
-                print "        ~^/hassio_ingress/.*/api/calendars/ 0;";
-                print "        ~^/api/events 0;";
-                print "        ~^/api/history 0;";
-                print "        ~^/api/logbook 0;";
-                print "        ~^/api/states 0;";
-                print "        ~^/api/template 0;";
-                print "        ~^/api/config 0;";
-                print "        ~^/api/calendars/ 0;";
-                print "        ~^/auth/token 0;";
-                print "        ~^/auth/providers 0;";
-                print "        ~^/manifest\\.json 0;";
-                print "        ~^/service_worker\\.js 0;";
-                print "        ~^/static/ 0;";
-                print "        ~^/frontend_latest/ 0;";
-                print "        ~^/local/ 0;";
-                print "        ~^/media/ 0;";
-                print "    }";
-                done=1; next
-            }
-            { print }
-        ' "$NGINX_CONF" > "${NGINX_CONF}.tmp" && mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
-
-        if grep -q 'map \$request_uri \$loggable' "$NGINX_CONF"; then
-            echo "[INFO] Added request URI suppression map to nginx.conf"
-        else
-            echo "[ERROR] map not found after insertion - check http block pattern" >&2
-            exit 1
-        fi
-    fi
-else
-    echo "[WARN] nginx.conf not found at $NGINX_CONF; skipping log format injection"
+# Check if minimal log_format is already present
+if grep -q "log_format minimal" "$NGINX_CONF"; then
+    echo "[INFO] Minimal log format already present. Skipping insertion."
+    exit 0
 fi
 
-# ------------------------------------------------------------------------------
-# Patch proxy templates to use minimal logging with suppression
-# ------------------------------------------------------------------------------
-if [ -n "$TEMPLATES_DIR" ] && [ -d "$TEMPLATES_DIR" ]; then
-    for tpl in "$TEMPLATES_DIR"/*.conf; do
-        [ -f "$tpl" ] || continue
-        if grep -q "access_log" "$tpl"; then
-            if sed -E -i 's|access_log (/data/logs/[^;]*);|access_log \1 minimal if=$loggable;|g' "$tpl"; then
-                echo "[INFO] Patched $(basename "$tpl") to use minimal logging with suppression"
-            else
-                echo "[WARN] Failed to patch $(basename "$tpl")" >&2
-            fi
-        fi
-    done
-else
-    echo "[WARN] No valid template directory found; skipping template patching"
+# Insert log_format and access_log after http { line
+awk -v logfmt="$LOG_FORMAT" -v acc="$ACCESS_LOG" '
+  /^[ \t]*http[ \t]*{/ {
+    print
+    print "    " logfmt
+    print "    " acc
+    next
+  }
+  { print }
+' "$NGINX_CONF" > "${NGINX_CONF}.tmp" && mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
+
+# Verify insertion
+if ! grep -q "log_format minimal" "$NGINX_CONF"; then
+    echo "[ERROR] log_format minimal not found after insertion"
+    exit 1
 fi
 
-# ------------------------------------------------------------------------------
-# Validate Nginx configuration (skip if templates not yet rendered)
-# ------------------------------------------------------------------------------
-if grep -q '%%dns_host%%' /etc/nginx/conf.d/include/resolvers.conf 2>/dev/null; then
-    echo "[WARN] Skipping nginx syntax validation (templates not yet rendered)"
-else
-    if nginx -t >/dev/null 2>&1; then
-        echo "[INFO] Nginx configuration syntax is valid"
-    else
-        echo "[WARN] Nginx syntax check failed — continuing (will revalidate later)"
-        nginx -t || true
-    fi
-fi
-
-echo "[INFO] Minimal access logging configuration complete"
+echo "[INFO] Minimal log format successfully inserted."
