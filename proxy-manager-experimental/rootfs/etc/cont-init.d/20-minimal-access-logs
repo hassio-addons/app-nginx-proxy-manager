@@ -23,8 +23,26 @@ if [ -f "$NGINX_CONF" ]; then
     fi
 
     # Add a map that disables logging for common HA background endpoints
-    if ! grep -q "map \$request_uri" "$NGINX_CONF"; then
-        if sed -i '/^[[:space:]]*http[[:space:]]*{/a\    map $request_uri $loggable {\n        default 1;\n        ~^/api/ping 0;\n        ~^/api/websocket 0;\n        ~^/api/hassio_ingress/ 0;\n        ~^/api/events 0;\n        ~^/api/history 0;\n        ~^/api/logbook 0;\n        ~^/api/states 0;\n        ~^/auth/token 0;\n        ~^/auth/providers 0;\n        ~^/manifest\\.json 0;\n        ~^/service_worker\\.js 0;\n        ~^/static/ 0;\n        ~^/frontend_latest/ 0;\n        ~^/local/ 0;\n        ~^/media/ 0;\n    }' "$NGINX_CONF"; then
+    if ! grep -q 'map \$request_uri \$loggable' "$NGINX_CONF"; then
+        if sed -i '/^[[:space:]]*http[[:space:]]*{/a\
+    map $request_uri $loggable {\
+        default 1;\
+        ~^\/api\/ping 0;\
+        ~^\/api\/websocket 0;\
+        ~^\/api\/hassio_ingress\/ 0;\
+        ~^\/api\/events 0;\
+        ~^\/api\/history 0;\
+        ~^\/api\/logbook 0;\
+        ~^\/api\/states 0;\
+        ~^\/auth\/token 0;\
+        ~^\/auth\/providers 0;\
+        ~^\/manifest\.json 0;\
+        ~^\/service_worker\.js 0;\
+        ~^\/static\/ 0;\
+        ~^\/frontend_latest\/ 0;\
+        ~^\/local\/ 0;\
+        ~^\/media\/ 0;\
+    }' "$NGINX_CONF"; then
             echo "[INFO] Added request URI suppression map to nginx.conf"
         else
             echo "[ERROR] Failed to add suppression map to nginx.conf" >&2
@@ -32,18 +50,26 @@ if [ -f "$NGINX_CONF" ]; then
         fi
     fi
 else
-    echo "[WARN] $NGINX_CONF not found — skipping direct nginx.conf patch."
+    echo "[WARN] nginx.conf not found at $NGINX_CONF; skipping log format injection"
 fi
 
 # ------------------------------------------------------------------------------
-# Patch all NPM template files to use the minimal format conditionally
+# Patch proxy host templates to use minimal logging with suppression
 # ------------------------------------------------------------------------------
-if [ -d /app/templates ]; then
-    find /app/templates -type f -name "*.conf" -exec \
-        sed -i 's|access_log .*;|access_log /var/lib/nginx/logs/access.log minimal if=$loggable;|g' {} +
-    echo "[INFO] Updated access_log directives in templates (conditional minimal logging)."
+TEMPLATES_DIR="/app/templates"
+if [ -d "$TEMPLATES_DIR" ]; then
+    for tpl in "$TEMPLATES_DIR"/*.conf; do
+        [ -f "$tpl" ] || continue
+        if grep -q "access_log" "$tpl"; then
+            if sed -i 's|access_log .*;|access_log /var/lib/nginx/logs/access.log minimal if=$loggable;|g' "$tpl"; then
+                echo "[INFO] Patched $(basename "$tpl") to use minimal logging with suppression"
+            else
+                echo "[WARN] Failed to patch $(basename "$tpl")" >&2
+            fi
+        fi
+    done
 else
-    echo "[WARN] /app/templates not found — skipping template patch."
+    echo "[WARN] Templates directory not found at $TEMPLATES_DIR; skipping template patching"
 fi
 
-echo "[INFO] Minimal access logging with HA suppression applied successfully."
+echo "[INFO] Minimal access logging configuration complete"
