@@ -7,14 +7,16 @@
 echo "[INFO] Enabling concise Nginx access logging with HA noise suppression..."
 
 NGINX_CONF="/etc/nginx/nginx.conf"
+TEMPLATES_DIR="/app/templates"
 
 # ------------------------------------------------------------------------------
-# Inject minimal log format and request suppression map
+# Inject minimal log format and suppression map
 # ------------------------------------------------------------------------------
 if [ -f "$NGINX_CONF" ]; then
-    # Define a minimal log format if not already present
+    # Add minimal log format if missing
     if ! grep -q "log_format minimal" "$NGINX_CONF"; then
-        if sed -i '/^[[:space:]]*http[[:space:]]*{/a\    log_format minimal '\''$remote_addr $host $status "$request" $request_time s'\'';' "$NGINX_CONF"; then
+        if sed -i '/^[[:space:]]*http[[:space:]]*{/a\
+    log_format minimal '\''$remote_addr $host $status "$request" $request_time s'\'';' "$NGINX_CONF"; then
             echo "[INFO] Added minimal log format to nginx.conf"
         else
             echo "[ERROR] Failed to add log format to nginx.conf" >&2
@@ -22,28 +24,30 @@ if [ -f "$NGINX_CONF" ]; then
         fi
     fi
 
-    # Add a map that disables logging for common HA background endpoints
+    # Add suppression map if missing
     if ! grep -q 'map \$request_uri \$loggable' "$NGINX_CONF"; then
         if sed -i '/^[[:space:]]*http[[:space:]]*{/a\
-    map $request_uri $loggable {\
-        default 1;\
-        ~^\/api\/ping 0;\
-        ~^\/api\/websocket 0;\
-        ~^\/api\/hassio_ingress\/ 0;\
-        ~^\/api\/events 0;\
-        ~^\/api\/history 0;\
-        ~^\/api\/logbook 0;\
-        ~^\/api\/states 0;\
-        ~^\/api\/calendars\/ 0;\
-        ~^\/auth\/token 0;\
-        ~^\/auth\/providers 0;\
-        ~^\/manifest\.json 0;\
-        ~^\/service_worker\.js 0;\
-        ~^\/static\/ 0;\
-        ~^\/frontend_latest\/ 0;\
-        ~^\/local\/ 0;\
-        ~^\/media\/ 0;\
-    }' "$NGINX_CONF"; then
+map $request_uri $loggable {\n\
+    default 1;\n\
+    ~^/api/ping 0;\n\
+    ~^/api/websocket 0;\n\
+    ~^/api/hassio_ingress/ 0;\n\
+    ~^/hassio_ingress/ 0;\n\
+    ~^/hassio_ingress/.*/api/calendars/ 0;\n\
+    ~^/api/events 0;\n\
+    ~^/api/history 0;\n\
+    ~^/api/logbook 0;\n\
+    ~^/api/states 0;\n\
+    ~^/api/calendars/ 0;\n\
+    ~^/auth/token 0;\n\
+    ~^/auth/providers 0;\n\
+    ~^/manifest\.json 0;\n\
+    ~^/service_worker\.js 0;\n\
+    ~^/static/ 0;\n\
+    ~^/frontend_latest/ 0;\n\
+    ~^/local/ 0;\n\
+    ~^/media/ 0;\n\
+}' "$NGINX_CONF"; then
             echo "[INFO] Added request URI suppression map to nginx.conf"
         else
             echo "[ERROR] Failed to add suppression map to nginx.conf" >&2
@@ -55,9 +59,8 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# Patch proxy host templates to use minimal logging with suppression
+# Patch proxy templates to use minimal logging with suppression
 # ------------------------------------------------------------------------------
-TEMPLATES_DIR="/app/templates"
 if [ -d "$TEMPLATES_DIR" ]; then
     for tpl in "$TEMPLATES_DIR"/*.conf; do
         [ -f "$tpl" ] || continue
@@ -71,6 +74,17 @@ if [ -d "$TEMPLATES_DIR" ]; then
     done
 else
     echo "[WARN] Templates directory not found at $TEMPLATES_DIR; skipping template patching"
+fi
+
+# ------------------------------------------------------------------------------
+# Validate Nginx configuration
+# ------------------------------------------------------------------------------
+if nginx -t >/dev/null 2>&1; then
+    echo "[INFO] Nginx configuration syntax is valid"
+else
+    echo "[ERROR] Invalid Nginx configuration detected after patching" >&2
+    nginx -t
+    exit 1
 fi
 
 echo "[INFO] Minimal access logging configuration complete"
