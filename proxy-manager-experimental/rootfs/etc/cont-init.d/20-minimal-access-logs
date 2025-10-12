@@ -1,39 +1,100 @@
-#!/usr/bin/with-contenv bash
-set -e
+#!/usr/bin/with-contenv bashio
+set -euo pipefail
 
 echo "[INFO] Enabling concise Nginx access logging with HA noise suppression..."
 
-NGINX_CONF="/opt/nginx-proxy-manager/templates/nginx.conf"
-LOG_FORMAT="log_format minimal '\$remote_addr - \$remote_user [\$time_local] \"\$request\" \$status \$body_bytes_sent \"\$http_referer\" \"\$http_user_agent\"';"
-ACCESS_LOG="access_log /data/logs/nginx/access.log minimal;"
+# -------------------------------------------------
+# Locate the template that contains the http{} block
+# -------------------------------------------------
+NGINX_TPL=$(grep -rl 'http[[:space:]]*{' /opt/nginx-proxy-manager/templates/*.conf 2>/dev/null | head -n1)
 
-# Check if http block exists
-if ! grep -q '^[ \t]*http[ \t]*{' "$NGINX_CONF"; then
-    echo "[ERROR] Could not find http{} block in $NGINX_CONF"
+if [[ -z "$NGINX_TPL" ]]; then
+    echo "[ERROR] No template with http{} block found – aborting"
     exit 1
 fi
 
-# Check if minimal log_format is already present
-if grep -q "log_format minimal" "$NGINX_CONF"; then
-    echo "[INFO] Minimal log format already present. Skipping insertion."
-    exit 0
-fi
+NGINX_CONF="/etc/nginx/nginx.conf"
+TEMPLATES_DIR="$(dirname "$NGINX_TPL")"
 
-# Insert log_format and access_log after http { line
-awk -v logfmt="$LOG_FORMAT" -v acc="$ACCESS_LOG" '
-  /^[ \t]*http[ \t]*{/ {
-    print
-    print "    " logfmt
-    print "    " acc
-    next
-  }
-  { print }
-' "$NGINX_CONF" > "${NGINX_CONF}.tmp" && mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
-
-# Verify insertion
+# -------------------------------------------------
+# Insert minimal log format (if missing)
+# -------------------------------------------------
 if ! grep -q "log_format minimal" "$NGINX_CONF"; then
-    echo "[ERROR] log_format minimal not found after insertion"
-    exit 1
+    echo "[INFO] Adding minimal log_format to $NGINX_CONF ..."
+    awk '
+        $0 ~ /^[[:space:]]*http[[:space:]]*\{/ && !done {
+            print;
+            print "    log_format minimal \"\\$remote_addr \\$host \\$status \\\"\\$request\\\" \\$request_time s\";";
+            done=1; next
+        }
+        { print }
+    ' "$NGINX_CONF" > "${NGINX_CONF}.tmp" && mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
 fi
 
-echo "[INFO] Minimal log format successfully inserted."
+# -------------------------------------------------
+# Insert request‑URI suppression map (if missing)
+# -------------------------------------------------
+if ! grep -q 'map \$request_uri \$loggable' "$NGINX_CONF"; then
+    echo "[INFO] Adding request‑URI suppression map to $NGINX_CONF ..."
+    awk '
+        $0 ~ /^[[:space:]]*http[[:space:]]*\{/ && !map_done {
+            print;
+            print "    map \\$request_uri \\$loggable {";
+            print "        default 1;";
+            print "        ~^/api/ping 0;";
+            print "        ~^/api/websocket 0;";
+            print "        ~^/api/hassio_ingress/ 0;";
+            print "        ~^/hassio_ingress/ 0;";
+            print "        ~^/hassio_ingress/.*/api/calendars/ 0;";
+            print "        ~^/api/events 0;";
+            print "        ~^/api/history 0;";
+            print "        ~^/api/logbook 0;";
+            print "        ~^/api/states 0;";
+            print "        ~^/api/template 0;";
+            print "        ~^/api/config 0;";
+            print "        ~^/api/calendars/ 0;";
+            print "        ~^/auth/token 0;";
+            print "        ~^/auth/providers 0;";
+            print "        ~^/manifest\\.json 0;";
+            print "        ~^/service_worker\\.js 0;";
+            print "        ~^/static/ 0;";
+            print "        ~^/frontend_latest/ 0;";
+            print "        ~^/local/ 0;";
+            print "        ~^/media/ 0;";
+            print "    }";
+            map_done=1; next
+        }
+        { print }
+    ' "$NGINX_CONF" > "${NGINX_CONF}.tmp" && mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
+fi
+
+# -------------------------------------------------
+# Patch each generated server template
+# -------------------------------------------------
+if [[ -d "$TEMPLATES_DIR" ]]; then
+    for tpl in "$TEMPLATES_DIR"/*.conf; do
+        [[ -f "$tpl" ]] || continue
+        if grep -q "access_log" "$tpl"; then
+            # Replace any existing access_log line
+            sed -i -E 's|access_log\s+[^;]+;|access_log /var/lib/nginx/logs/access.log minimal if=$loggable;|g' "$tpl"
+        else
+            # Append a minimal access_log right after the first server{ line
+            awk '/^[[:space:]]*server[[:space:]]*{/ && !added {print; print "    access_log /var/lib/nginx/logs/access.log minimal if=$loggable;"; added=1; next} {print}' "$tpl" > "${tpl}.tmp" && mv "${tpl}.tmp" "$tpl"
+        fi
+        echo "[INFO] Patched $(basename "$tpl")"
+    done
+else
+    echo "[WARN] Template directory $TEMPLATES_DIR not found – skipping template patching"
+fi
+
+# -------------------------------------------------
+# Validate the final Nginx configuration
+# -------------------------------------------------
+if nginx -t; then
+    echo "[INFO] Nginx configuration syntax OK"
+else
+    echo "[ERROR] Nginx configuration test failed – check the logs"
+    nginx -t
+fi
+
+echo "[INFO] Minimal access logging configuration complete"
