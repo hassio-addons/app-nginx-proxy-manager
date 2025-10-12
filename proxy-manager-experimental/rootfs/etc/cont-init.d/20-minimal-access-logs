@@ -1,21 +1,22 @@
 #!/usr/bin/with-contenv bashio
-# Configure Nginx to use a minimal access log format
+# Configure Nginx to use a concise access log format
 
-echo "[INFO] Enabling minimal Nginx access logging..."
+echo "[INFO] Enabling concise Nginx access logging..."
 
-# Define a minimal log format if nginx.conf exists
+# Define a clean, short log format
+MINIMAL_LOG_FORMAT="    log_format minimal '\$remote_addr \$host \$status \"\$request\" \$request_time s';"
+
+# If nginx.conf exists, inject the format inside the http block (once)
 if [ -f /etc/nginx/nginx.conf ]; then
-    # Add log_format only if not already defined
     grep -q "log_format minimal" /etc/nginx/nginx.conf || \
-    sed -i '/http {/a \    log_format minimal '\''$remote_addr - $status "$request"'\'';' /etc/nginx/nginx.conf
+    sed -i "/http {/a ${MINIMAL_LOG_FORMAT}" /etc/nginx/nginx.conf
 fi
 
-# Patch all NPM template files to use minimal format
+# Patch all NPM template files to use the minimal log format
 if [ -d /app/templates ]; then
     find /app/templates -type f -name "*.conf" -exec \
         sed -i 's|access_log .*;|access_log /var/lib/nginx/logs/access.log minimal;|g' {} +
-    echo "[INFO] Patched access_log directives in templates."
+    echo "[INFO] Updated access_log directives in templates."
 else
     echo "[WARN] /app/templates not found — skipping template patch."
 fi
-
