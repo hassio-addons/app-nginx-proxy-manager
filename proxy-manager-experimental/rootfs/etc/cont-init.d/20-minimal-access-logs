@@ -106,7 +106,7 @@ if [ -n "$TEMPLATES_DIR" ] && [ -d "$TEMPLATES_DIR" ]; then
     for tpl in "$TEMPLATES_DIR"/*.conf; do
         [ -f "$tpl" ] || continue
         if grep -q "access_log" "$tpl"; then
-            if sed -i 's|access_log /data/logs/[^;]*;|access_log /var/lib/nginx/logs/access.log minimal if=$loggable;|g' "$tpl"; then
+            if sed -E -i 's|access_log (/data/logs/[^;]*);|access_log \1 minimal if=$loggable;|g' "$tpl"; then
                 echo "[INFO] Patched $(basename "$tpl") to use minimal logging with suppression"
             else
                 echo "[WARN] Failed to patch $(basename "$tpl")" >&2
