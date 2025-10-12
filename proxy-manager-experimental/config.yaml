@@ -1,12 +1,12 @@
 ---
 name: UNOFFICIAL Nginx Proxy Manager
-version: 0.0.11-logrotate
+version: 0.0.12-logrotate
 slug: proxy_manager_experimental
 description: Modified Nginx Proxy Manager with logrotate fix
 url: https://github.com/tciprop/addon-nginx-proxy-manager#logrotate_issue
 webui: http://[HOST]:[PORT:81]
 startup: services
-init: true
+init: false
 arch:
   - aarch64
   - amd64
