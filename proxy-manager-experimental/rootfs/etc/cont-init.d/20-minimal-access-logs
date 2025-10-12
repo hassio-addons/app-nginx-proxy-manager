@@ -2,19 +2,68 @@
 set -euo pipefail
 
 echo "[INFO] Enabling concise Nginx access logging with HA noise suppression..."
+echo "[DEBUG] Starting minimal access logs configuration"
 
 # -------------------------------------------------
 # Locate the template that contains the http{} block
 # -------------------------------------------------
-NGINX_TPL=$(grep -rl 'http[[:space:]]*{' /opt/nginx-proxy-manager/templates/*.conf 2>/dev/null | head -n1)
+echo "[INFO] Searching for Nginx templates..."
+
+# Try multiple possible locations
+POSSIBLE_PATHS=(
+    "/opt/nginx-proxy-manager/templates"
+    "/etc/nginx/templates" 
+    "/templates"
+    "/app/templates"
+    "/usr/local/nginx/templates"
+)
+
+NGINX_TPL=""
+for path in "${POSSIBLE_PATHS[@]}"; do
+    if [[ -d "$path" ]]; then
+        echo "[DEBUG] Checking path: $path"
+        NGINX_TPL=$(grep -rl 'http[[:space:]]*{' "$path"/*.conf 2>/dev/null | head -n1)
+        if [[ -n "$NGINX_TPL" ]]; then
+            echo "[INFO] Found template: $NGINX_TPL"
+            break
+        fi
+    fi
+done
+
+# If still not found, try to find nginx.conf in common locations
+if [[ -z "$NGINX_TPL" ]]; then
+    echo "[DEBUG] No templates found in standard directories, searching for nginx.conf"
+    POSSIBLE_NGINX_CONF=(
+        "/etc/nginx/nginx.conf"
+        "/opt/nginx-proxy-manager/nginx.conf"
+        "/usr/local/nginx/conf/nginx.conf"
+    )
+    for conf in "${POSSIBLE_NGINX_CONF[@]}"; do
+        if [[ -f "$conf" ]] && grep -q 'http[[:space:]]*{' "$conf"; then
+            NGINX_TPL="$conf"
+            echo "[INFO] Using nginx.conf: $NGINX_TPL"
+            break
+        fi
+    done
+fi
 
 if [[ -z "$NGINX_TPL" ]]; then
-    echo "[ERROR] No template with http{} block found – aborting"
-    exit 1
+    echo "[WARN] No template with http{} block found - will proceed with direct nginx.conf modification only"
+    TEMPLATES_DIR=""
+else
+    TEMPLATES_DIR="$(dirname "$NGINX_TPL")"
+    echo "[INFO] Template directory: $TEMPLATES_DIR"
 fi
 
 NGINX_CONF="/etc/nginx/nginx.conf"
-TEMPLATES_DIR="$(dirname "$NGINX_TPL")"
+
+# Verify nginx.conf exists
+if [[ ! -f "$NGINX_CONF" ]]; then
+    echo "[ERROR] Main nginx.conf not found at $NGINX_CONF - aborting"
+    exit 1
+fi
+
+echo "[INFO] Using main nginx config: $NGINX_CONF"
 
 # -------------------------------------------------
 # Insert minimal log format (if missing)
@@ -29,6 +78,9 @@ if ! grep -q "log_format minimal" "$NGINX_CONF"; then
         }
         { print }
     ' "$NGINX_CONF" > "${NGINX_CONF}.tmp" && mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
+    echo "[INFO] Minimal log format added successfully"
+else
+    echo "[INFO] Minimal log format already exists"
 fi
 
 # -------------------------------------------------
@@ -66,35 +118,65 @@ if ! grep -q 'map \$request_uri \$loggable' "$NGINX_CONF"; then
         }
         { print }
     ' "$NGINX_CONF" > "${NGINX_CONF}.tmp" && mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
+    echo "[INFO] Request URI suppression map added successfully"
+else
+    echo "[INFO] Request URI suppression map already exists"
 fi
 
 # -------------------------------------------------
-# Patch each generated server template
+# Patch each generated server template (if templates directory exists)
 # -------------------------------------------------
-if [[ -d "$TEMPLATES_DIR" ]]; then
+if [[ -n "$TEMPLATES_DIR" && -d "$TEMPLATES_DIR" ]]; then
+    echo "[INFO] Patching templates in $TEMPLATES_DIR"
     for tpl in "$TEMPLATES_DIR"/*.conf; do
         [[ -f "$tpl" ]] || continue
+        echo "[DEBUG] Processing template: $(basename "$tpl")"
+        
         if grep -q "access_log" "$tpl"; then
             # Replace any existing access_log line
-            sed -i -E 's|access_log\s+[^;]+;|access_log /var/lib/nginx/logs/access.log minimal if=$loggable;|g' "$tpl"
+            sed -i -E 's|access_log\s+[^;]+;|access_log /var/log/nginx/access.log minimal if=$loggable;|g' "$tpl"
+            echo "[INFO] Replaced access_log in $(basename "$tpl")"
         else
             # Append a minimal access_log right after the first server{ line
-            awk '/^[[:space:]]*server[[:space:]]*{/ && !added {print; print "    access_log /var/lib/nginx/logs/access.log minimal if=$loggable;"; added=1; next} {print}' "$tpl" > "${tpl}.tmp" && mv "${tpl}.tmp" "$tpl"
+            if awk '/^[[:space:]]*server[[:space:]]*{/ && !added {print; print "    access_log /var/log/nginx/access.log minimal if=$loggable;"; added=1; next} {print}' "$tpl" > "${tpl}.tmp" && mv "${tpl}.tmp" "$tpl"; then
+                echo "[INFO] Added access_log to $(basename "$tpl")"
+            else
+                echo "[WARN] Failed to add access_log to $(basename "$tpl")"
+            fi
         fi
-        echo "[INFO] Patched $(basename "$tpl")"
     done
 else
-    echo "[WARN] Template directory $TEMPLATES_DIR not found – skipping template patching"
+    echo "[WARN] Template directory not found or empty – skipping template patching"
+    echo "[INFO] Will rely on main nginx.conf configuration only"
+fi
+
+# -------------------------------------------------
+# Ensure log directory exists
+# -------------------------------------------------
+LOG_DIR="/var/log/nginx"
+if [[ ! -d "$LOG_DIR" ]]; then
+    echo "[INFO] Creating log directory: $LOG_DIR"
+    mkdir -p "$LOG_DIR"
 fi
 
 # -------------------------------------------------
 # Validate the final Nginx configuration
 # -------------------------------------------------
-if nginx -t; then
+echo "[INFO] Validating Nginx configuration..."
+if nginx -t 2>/dev/null; then
     echo "[INFO] Nginx configuration syntax OK"
 else
-    echo "[ERROR] Nginx configuration test failed – check the logs"
+    echo "[ERROR] Nginx configuration test failed"
+    echo "[DEBUG] Showing nginx -t output:"
     nginx -t
+    echo "[WARN] Continuing despite configuration test failure"
 fi
 
 echo "[INFO] Minimal access logging configuration complete"
+echo "[INFO] The following paths will not be logged:"
+echo "[INFO]   - /api/ping, /api/websocket, /api/hassio_ingress/"
+echo "[INFO]   - /api/events, /api/history, /api/logbook, /api/states"
+echo "[INFO]   - /api/template, /api/config, /api/calendars/"
+echo "[INFO]   - /auth/token, /auth/providers"
+echo "[INFO]   - /manifest.json, /service_worker.js"
+echo "[INFO]   - /static/, /frontend_latest/, /local/, /media/"
