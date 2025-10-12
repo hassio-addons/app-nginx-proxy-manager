@@ -22,11 +22,16 @@ NGINX_TPL=""
 for path in "${POSSIBLE_PATHS[@]}"; do
     if [[ -d "$path" ]]; then
         echo "[DEBUG] Checking path: $path"
-        NGINX_TPL=$(grep -rl 'http[[:space:]]*{' "$path"/*.conf 2>/dev/null | head -n1)
-        if [[ -n "$NGINX_TPL" ]]; then
-            echo "[INFO] Found template: $NGINX_TPL"
-            break
+        # Use find instead of grep to avoid permission issues
+        if find "$path" -name "*.conf" -type f 2>/dev/null | head -n1 | grep -q .; then
+            NGINX_TPL=$(find "$path" -name "*.conf" -type f 2>/dev/null | head -n1)
+            # Now check if this file contains http block
+            if [[ -n "$NGINX_TPL" ]] && grep -q 'http[[:space:]]*{' "$NGINX_TPL" 2>/dev/null; then
+                echo "[INFO] Found template: $NGINX_TPL"
+                break
+            fi
         fi
+        NGINX_TPL=""
     fi
 done
 
@@ -39,7 +44,7 @@ if [[ -z "$NGINX_TPL" ]]; then
         "/usr/local/nginx/conf/nginx.conf"
     )
     for conf in "${POSSIBLE_NGINX_CONF[@]}"; do
-        if [[ -f "$conf" ]] && grep -q 'http[[:space:]]*{' "$conf"; then
+        if [[ -f "$conf" ]] && grep -q 'http[[:space:]]*{' "$conf" 2>/dev/null; then
             NGINX_TPL="$conf"
             echo "[INFO] Using nginx.conf: $NGINX_TPL"
             break
@@ -70,15 +75,20 @@ echo "[INFO] Using main nginx config: $NGINX_CONF"
 # -------------------------------------------------
 if ! grep -q "log_format minimal" "$NGINX_CONF"; then
     echo "[INFO] Adding minimal log_format to $NGINX_CONF ..."
-    awk '
+    if awk '
         $0 ~ /^[[:space:]]*http[[:space:]]*\{/ && !done {
             print;
-            print "    log_format minimal \"\\$remote_addr \\$host \\$status \\\"\\$request\\\" \\$request_time s\";";
+            print "    log_format minimal \"$remote_addr $host $status \\\"$request\\\" $request_time s\";";
             done=1; next
         }
         { print }
-    ' "$NGINX_CONF" > "${NGINX_CONF}.tmp" && mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
-    echo "[INFO] Minimal log format added successfully"
+    ' "$NGINX_CONF" > "${NGINX_CONF}.tmp" 2>/dev/null; then
+        mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
+        echo "[INFO] Minimal log format added successfully"
+    else
+        echo "[ERROR] Failed to add minimal log format"
+        rm -f "${NGINX_CONF}.tmp" 2>/dev/null || true
+    fi
 else
     echo "[INFO] Minimal log format already exists"
 fi
@@ -88,10 +98,10 @@ fi
 # -------------------------------------------------
 if ! grep -q 'map \$request_uri \$loggable' "$NGINX_CONF"; then
     echo "[INFO] Adding request‑URI suppression map to $NGINX_CONF ..."
-    awk '
+    if awk '
         $0 ~ /^[[:space:]]*http[[:space:]]*\{/ && !map_done {
             print;
-            print "    map \\$request_uri \\$loggable {";
+            print "    map $request_uri $loggable {";
             print "        default 1;";
             print "        ~^/api/ping 0;";
             print "        ~^/api/websocket 0;";
@@ -117,8 +127,13 @@ if ! grep -q 'map \$request_uri \$loggable' "$NGINX_CONF"; then
             map_done=1; next
         }
         { print }
-    ' "$NGINX_CONF" > "${NGINX_CONF}.tmp" && mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
-    echo "[INFO] Request URI suppression map added successfully"
+    ' "$NGINX_CONF" > "${NGINX_CONF}.tmp" 2>/dev/null; then
+        mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
+        echo "[INFO] Request URI suppression map added successfully"
+    else
+        echo "[ERROR] Failed to add request URI suppression map"
+        rm -f "${NGINX_CONF}.tmp" 2>/dev/null || true
+    fi
 else
     echo "[INFO] Request URI suppression map already exists"
 fi
@@ -132,16 +147,25 @@ if [[ -n "$TEMPLATES_DIR" && -d "$TEMPLATES_DIR" ]]; then
         [[ -f "$tpl" ]] || continue
         echo "[DEBUG] Processing template: $(basename "$tpl")"
         
-        if grep -q "access_log" "$tpl"; then
+        if grep -q "access_log" "$tpl" 2>/dev/null; then
             # Replace any existing access_log line
-            sed -i -E 's|access_log\s+[^;]+;|access_log /var/log/nginx/access.log minimal if=$loggable;|g' "$tpl"
-            echo "[INFO] Replaced access_log in $(basename "$tpl")"
+            if sed -i -E 's|access_log\s+[^;]+;|access_log /var/log/nginx/access.log minimal if=$loggable;|g' "$tpl" 2>/dev/null; then
+                echo "[INFO] Replaced access_log in $(basename "$tpl")"
+            else
+                echo "[WARN] Failed to replace access_log in $(basename "$tpl")"
+            fi
         else
             # Append a minimal access_log right after the first server{ line
-            if awk '/^[[:space:]]*server[[:space:]]*{/ && !added {print; print "    access_log /var/log/nginx/access.log minimal if=$loggable;"; added=1; next} {print}' "$tpl" > "${tpl}.tmp" && mv "${tpl}.tmp" "$tpl"; then
-                echo "[INFO] Added access_log to $(basename "$tpl")"
+            if awk '/^[[:space:]]*server[[:space:]]*{/ && !added {print; print "    access_log /var/log/nginx/access.log minimal if=$loggable;"; added=1; next} {print}' "$tpl" > "${tpl}.tmp" 2>/dev/null; then
+                if mv "${tpl}.tmp" "$tpl" 2>/dev/null; then
+                    echo "[INFO] Added access_log to $(basename "$tpl")"
+                else
+                    echo "[WARN] Failed to update $(basename "$tpl")"
+                    rm -f "${tpl}.tmp" 2>/dev/null || true
+                fi
             else
-                echo "[WARN] Failed to add access_log to $(basename "$tpl")"
+                echo "[WARN] Failed to process $(basename "$tpl")"
+                rm -f "${tpl}.tmp" 2>/dev/null || true
             fi
         fi
     done
@@ -156,7 +180,7 @@ fi
 LOG_DIR="/var/log/nginx"
 if [[ ! -d "$LOG_DIR" ]]; then
     echo "[INFO] Creating log directory: $LOG_DIR"
-    mkdir -p "$LOG_DIR"
+    mkdir -p "$LOG_DIR" 2>/dev/null || echo "[WARN] Failed to create log directory"
 fi
 
 # -------------------------------------------------
@@ -168,7 +192,7 @@ if nginx -t 2>/dev/null; then
 else
     echo "[ERROR] Nginx configuration test failed"
     echo "[DEBUG] Showing nginx -t output:"
-    nginx -t
+    nginx -t 2>&1 || true
     echo "[WARN] Continuing despite configuration test failure"
 fi
 
