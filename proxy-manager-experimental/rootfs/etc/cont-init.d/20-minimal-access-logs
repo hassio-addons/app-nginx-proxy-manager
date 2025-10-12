@@ -1,36 +1,21 @@
 #!/usr/bin/with-contenv bashio
-# Configure Nginx to use a concise access log format with HA noise suppression
-
+# Configure Nginx to use a concise access log format with HA suppression
 echo "[INFO] Enabling concise Nginx access logging with HA suppression..."
 
 NGINX_CONF="/etc/nginx/nginx.conf"
-MINIMAL_LOG_FORMAT="    log_format minimal '\$remote_addr \$host \$status \"\$request\" \$request_time s';"
 
-# Define a map to silence specific HA paths
-NOISE_FILTER=$(cat <<'EOF'
-    map $request_uri $loggable {
-        default 1;
-        ~^/api/ping 0;
-        ~^/manifest\.json 0;
-        ~^/static/ 0;
-        ~^/frontend_latest/ 0;
-        ~^/local/ 0;
-        ~^/media/ 0;
-    }
-EOF
-)
-
-# Inject map + log_format if not already present
+# Inject minimal format + HA noise filter using portable sed syntax
 if [ -f "$NGINX_CONF" ]; then
-    if ! grep -q "log_format minimal" "$NGINX_CONF"; then
-        sed -i "/http {/a ${MINIMAL_LOG_FORMAT}" "$NGINX_CONF"
-    fi
-    if ! grep -q "map \$request_uri" "$NGINX_CONF"; then
-        sed -i "/http {/a ${NOISE_FILTER}" "$NGINX_CONF"
-    fi
+    # Add log_format if missing
+    grep -q "log_format minimal" "$NGINX_CONF" || \
+        sed -i '/http {/a\    log_format minimal '\''$remote_addr $host $status "$request" $request_time s'\'';' "$NGINX_CONF"
+
+    # Add map for noisy HA URIs if missing
+    grep -q "map \$request_uri" "$NGINX_CONF" || \
+        sed -i '/http {/a\    map $request_uri $loggable {\n        default 1;\n        ~^/api/ping 0;\n        ~^/manifest\\.json 0;\n        ~^/static/ 0;\n        ~^/frontend_latest/ 0;\n        ~^/local/ 0;\n        ~^/media/ 0;\n    }' "$NGINX_CONF"
 fi
 
-# Patch templates to use conditional logging
+# Patch all template files to use conditional logging
 if [ -d /app/templates ]; then
     find /app/templates -type f -name "*.conf" -exec \
         sed -i 's|access_log .*;|access_log /var/lib/nginx/logs/access.log minimal if=$loggable;|g' {} +
