@@ -2,63 +2,6 @@
 set -euo pipefail
 
 echo "[INFO] Enabling concise Nginx access logging with HA noise suppression..."
-echo "[DEBUG] Starting minimal access logs configuration"
-
-# -------------------------------------------------
-# Locate the template that contains the http{} block
-# -------------------------------------------------
-echo "[INFO] Searching for Nginx templates..."
-
-# Try multiple possible locations
-POSSIBLE_PATHS=(
-    "/opt/nginx-proxy-manager/templates"
-    "/etc/nginx/templates" 
-    "/templates"
-    "/app/templates"
-    "/usr/local/nginx/templates"
-)
-
-NGINX_TPL=""
-for path in "${POSSIBLE_PATHS[@]}"; do
-    if [[ -d "$path" ]]; then
-        echo "[DEBUG] Checking path: $path"
-        # Use find instead of grep to avoid permission issues
-        if find "$path" -name "*.conf" -type f 2>/dev/null | head -n1 | grep -q .; then
-            NGINX_TPL=$(find "$path" -name "*.conf" -type f 2>/dev/null | head -n1)
-            # Now check if this file contains http block
-            if [[ -n "$NGINX_TPL" ]] && grep -q 'http[[:space:]]*{' "$NGINX_TPL" 2>/dev/null; then
-                echo "[INFO] Found template: $NGINX_TPL"
-                break
-            fi
-        fi
-        NGINX_TPL=""
-    fi
-done
-
-# If still not found, try to find nginx.conf in common locations
-if [[ -z "$NGINX_TPL" ]]; then
-    echo "[DEBUG] No templates found in standard directories, searching for nginx.conf"
-    POSSIBLE_NGINX_CONF=(
-        "/etc/nginx/nginx.conf"
-        "/opt/nginx-proxy-manager/nginx.conf"
-        "/usr/local/nginx/conf/nginx.conf"
-    )
-    for conf in "${POSSIBLE_NGINX_CONF[@]}"; do
-        if [[ -f "$conf" ]] && grep -q 'http[[:space:]]*{' "$conf" 2>/dev/null; then
-            NGINX_TPL="$conf"
-            echo "[INFO] Using nginx.conf: $NGINX_TPL"
-            break
-        fi
-    done
-fi
-
-if [[ -z "$NGINX_TPL" ]]; then
-    echo "[WARN] No template with http{} block found - will proceed with direct nginx.conf modification only"
-    TEMPLATES_DIR=""
-else
-    TEMPLATES_DIR="$(dirname "$NGINX_TPL")"
-    echo "[INFO] Template directory: $TEMPLATES_DIR"
-fi
 
 NGINX_CONF="/etc/nginx/nginx.conf"
 
@@ -123,6 +66,7 @@ if ! grep -q 'map \$request_uri \$loggable' "$NGINX_CONF"; then
             print "        ~^/frontend_latest/ 0;";
             print "        ~^/local/ 0;";
             print "        ~^/media/ 0;";
+            print "        ~^/api/webhook/ 0;";
             print "    }";
             map_done=1; next
         }
@@ -139,40 +83,81 @@ else
 fi
 
 # -------------------------------------------------
-# Patch each generated server template (if templates directory exists)
+# Find and patch ALL nginx config files with server blocks
 # -------------------------------------------------
-if [[ -n "$TEMPLATES_DIR" && -d "$TEMPLATES_DIR" ]]; then
-    echo "[INFO] Patching templates in $TEMPLATES_DIR"
-    for tpl in "$TEMPLATES_DIR"/*.conf; do
-        [[ -f "$tpl" ]] || continue
-        echo "[DEBUG] Processing template: $(basename "$tpl")"
-        
-        if grep -q "access_log" "$tpl" 2>/dev/null; then
-            # Replace any existing access_log line
-            if sed -i -E 's|access_log\s+[^;]+;|access_log /var/log/nginx/access.log minimal if=$loggable;|g' "$tpl" 2>/dev/null; then
-                echo "[INFO] Replaced access_log in $(basename "$tpl")"
-            else
-                echo "[WARN] Failed to replace access_log in $(basename "$tpl")"
-            fi
-        else
-            # Append a minimal access_log right after the first server{ line
-            if awk '/^[[:space:]]*server[[:space:]]*{/ && !added {print; print "    access_log /var/log/nginx/access.log minimal if=$loggable;"; added=1; next} {print}' "$tpl" > "${tpl}.tmp" 2>/dev/null; then
-                if mv "${tpl}.tmp" "$tpl" 2>/dev/null; then
-                    echo "[INFO] Added access_log to $(basename "$tpl")"
-                else
-                    echo "[WARN] Failed to update $(basename "$tpl")"
-                    rm -f "${tpl}.tmp" 2>/dev/null || true
+echo "[INFO] Searching for nginx config files with server blocks..."
+
+# Search in common nginx configuration directories
+CONFIG_DIRS=(
+    "/etc/nginx"
+    "/opt/nginx-proxy-manager"
+    "/data/nginx"
+)
+
+# Also add webhook to the suppression list since I see those in your logs
+SUPPRESSED_PATHS=(
+    "/api/ping"
+    "/api/websocket" 
+    "/api/hassio_ingress/"
+    "/hassio_ingress/"
+    "/api/events"
+    "/api/history"
+    "/api/logbook"
+    "/api/states"
+    "/api/template"
+    "/api/config"
+    "/api/calendars/"
+    "/auth/token"
+    "/auth/providers"
+    "/manifest.json"
+    "/service_worker.js"
+    "/static/"
+    "/frontend_latest/"
+    "/local/"
+    "/media/"
+    "/api/webhook/"
+)
+
+for dir in "${CONFIG_DIRS[@]}"; do
+    if [[ -d "$dir" ]]; then
+        echo "[DEBUG] Searching in $dir for server blocks..."
+        # Use find to locate all .conf files, then check if they contain server blocks
+        while IFS= read -r -d '' config_file; do
+            if [[ -f "$config_file" ]] && grep -q '^[[:space:]]*server[[:space:]]*{' "$config_file" 2>/dev/null; then
+                echo "[INFO] Found server block in: $config_file"
+                
+                # Check if this file already has our access_log directive
+                if grep -q "access_log.*minimal.*if=\$loggable" "$config_file" 2>/dev/null; then
+                    echo "[INFO] Already patched: $(basename "$config_file")"
+                    continue
                 fi
-            else
-                echo "[WARN] Failed to process $(basename "$tpl")"
-                rm -f "${tpl}.tmp" 2>/dev/null || true
+                
+                # Patch the config file
+                if grep -q "access_log" "$config_file" 2>/dev/null; then
+                    # Replace existing access_log lines
+                    if sed -i -E 's|^([[:space:]]*)access_log[[:space:]]+[^;]+;|\1access_log /var/log/nginx/access.log minimal if=$loggable;|g' "$config_file" 2>/dev/null; then
+                        echo "[INFO] Replaced access_log in $(basename "$config_file")"
+                    else
+                        echo "[WARN] Failed to replace access_log in $(basename "$config_file")"
+                    fi
+                else
+                    # Add access_log after server block
+                    if awk '/^[[:space:]]*server[[:space:]]*{/ && !added {print; print "    access_log /var/log/nginx/access.log minimal if=$loggable;"; added=1; next} {print}' "$config_file" > "${config_file}.tmp" 2>/dev/null; then
+                        if mv "${config_file}.tmp" "$config_file" 2>/dev/null; then
+                            echo "[INFO] Added access_log to $(basename "$config_file")"
+                        else
+                            echo "[WARN] Failed to update $(basename "$config_file")"
+                            rm -f "${config_file}.tmp" 2>/dev/null || true
+                        fi
+                    else
+                        echo "[WARN] Failed to process $(basename "$config_file")"
+                        rm -f "${config_file}.tmp" 2>/dev/null || true
+                    fi
+                fi
             fi
-        fi
-    done
-else
-    echo "[WARN] Template directory not found or empty – skipping template patching"
-    echo "[INFO] Will rely on main nginx.conf configuration only"
-fi
+        done < <(find "$dir" -name "*.conf" -type f -print0 2>/dev/null)
+    fi
+done
 
 # -------------------------------------------------
 # Ensure log directory exists
@@ -181,6 +166,13 @@ LOG_DIR="/var/log/nginx"
 if [[ ! -d "$LOG_DIR" ]]; then
     echo "[INFO] Creating log directory: $LOG_DIR"
     mkdir -p "$LOG_DIR" 2>/dev/null || echo "[WARN] Failed to create log directory"
+fi
+
+# Also create the directory that nginx expects for error logs
+ERROR_LOG_DIR="/var/lib/nginx/logs"
+if [[ ! -d "$ERROR_LOG_DIR" ]]; then
+    echo "[INFO] Creating error log directory: $ERROR_LOG_DIR"
+    mkdir -p "$ERROR_LOG_DIR" 2>/dev/null || echo "[WARN] Failed to create error log directory"
 fi
 
 # -------------------------------------------------
@@ -198,9 +190,6 @@ fi
 
 echo "[INFO] Minimal access logging configuration complete"
 echo "[INFO] The following paths will not be logged:"
-echo "[INFO]   - /api/ping, /api/websocket, /api/hassio_ingress/"
-echo "[INFO]   - /api/events, /api/history, /api/logbook, /api/states"
-echo "[INFO]   - /api/template, /api/config, /api/calendars/"
-echo "[INFO]   - /auth/token, /auth/providers"
-echo "[INFO]   - /manifest.json, /service_worker.js"
-echo "[INFO]   - /static/, /frontend_latest/, /local/, /media/"
+for path in "${SUPPRESSED_PATHS[@]}"; do
+    echo "[INFO]   - $path"
+done
