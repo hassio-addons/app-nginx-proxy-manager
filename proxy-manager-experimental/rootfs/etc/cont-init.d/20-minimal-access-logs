@@ -14,12 +14,22 @@ NGINX_CONF="/etc/nginx/nginx.conf"
 if [ -f "$NGINX_CONF" ]; then
     # Define a minimal log format if not already present
     if ! grep -q "log_format minimal" "$NGINX_CONF"; then
-        sed -i '/http {/a\    log_format minimal '\''$remote_addr $host $status "$request" $request_time s'\'';' "$NGINX_CONF"
+        if sed -i '/^[[:space:]]*http[[:space:]]*{/a\    log_format minimal '\''$remote_addr $host $status "$request" $request_time s'\'';' "$NGINX_CONF"; then
+            echo "[INFO] Added minimal log format to nginx.conf"
+        else
+            echo "[ERROR] Failed to add log format to nginx.conf" >&2
+            exit 1
+        fi
     fi
 
     # Add a map that disables logging for common HA background endpoints
     if ! grep -q "map \$request_uri" "$NGINX_CONF"; then
-        sed -i '/http {/a\    map $request_uri $loggable {\n        default 1;\n        ~^/api/ping 0;\n        ~^/api/websocket 0;\n        ~^/api/hassio_ingress/ 0;\n        ~^/api/events 0;\n        ~^/api/history 0;\n        ~^/api/logbook 0;\n        ~^/api/states 0;\n        ~^/auth/token 0;\n        ~^/auth/providers 0;\n        ~^/manifest\\.json 0;\n        ~^/service_worker\\.js 0;\n        ~^/static/ 0;\n        ~^/frontend_latest/ 0;\n        ~^/local/ 0;\n        ~^/media/ 0;\n    }' "$NGINX_CONF"
+        if sed -i '/^[[:space:]]*http[[:space:]]*{/a\    map $request_uri $loggable {\n        default 1;\n        ~^/api/ping 0;\n        ~^/api/websocket 0;\n        ~^/api/hassio_ingress/ 0;\n        ~^/api/events 0;\n        ~^/api/history 0;\n        ~^/api/logbook 0;\n        ~^/api/states 0;\n        ~^/auth/token 0;\n        ~^/auth/providers 0;\n        ~^/manifest\\.json 0;\n        ~^/service_worker\\.js 0;\n        ~^/static/ 0;\n        ~^/frontend_latest/ 0;\n        ~^/local/ 0;\n        ~^/media/ 0;\n    }' "$NGINX_CONF"; then
+            echo "[INFO] Added request URI suppression map to nginx.conf"
+        else
+            echo "[ERROR] Failed to add suppression map to nginx.conf" >&2
+            exit 1
+        fi
     fi
 else
     echo "[WARN] $NGINX_CONF not found — skipping direct nginx.conf patch."
