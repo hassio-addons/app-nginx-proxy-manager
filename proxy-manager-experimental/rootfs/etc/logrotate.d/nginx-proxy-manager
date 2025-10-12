@@ -2,6 +2,7 @@
     su root root
     create 0640 root root
     missingok
+    notifempty
     rotate 12
     weekly
     compress
