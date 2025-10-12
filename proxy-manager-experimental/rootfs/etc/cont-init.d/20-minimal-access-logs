@@ -34,6 +34,7 @@ if [ -f "$NGINX_CONF" ]; then
         ~^\/api\/history 0;\
         ~^\/api\/logbook 0;\
         ~^\/api\/states 0;\
+        ~^\/api\/calendars\/ 0;\
         ~^\/auth\/token 0;\
         ~^\/auth\/providers 0;\
         ~^\/manifest\.json 0;\
