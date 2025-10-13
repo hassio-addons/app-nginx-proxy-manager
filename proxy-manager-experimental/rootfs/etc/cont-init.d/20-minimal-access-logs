@@ -17,10 +17,10 @@ fi
 echo "[INFO] Using main nginx config: $NGINX_CONF"
 
 # -------------------------------------------------
-# Create generalized suppression map file
+# Create enhanced generalized suppression map
 # -------------------------------------------------
 if [[ ! -f "$SUPPRESS_MAP_CONF" ]]; then
-    echo "[INFO] Creating generalized suppression map: $SUPPRESS_MAP_CONF"
+    echo "[INFO] Creating enhanced suppression map: $SUPPRESS_MAP_CONF"
     cat > "$SUPPRESS_MAP_CONF" <<'EOF'
 map $request_uri $loggable {
     default 1;
@@ -48,7 +48,7 @@ map $request_uri $loggable {
     ~*/service-worker 0;
     ~*/sw\.js 0;
     
-    # Rate-based suppression simulation (frequent endpoints)
+    # Rate-based suppression simulation
     ~*/refresh 0;
     ~*/poll 0;
     ~*/update 0;
@@ -58,6 +58,15 @@ map $request_uri $loggable {
     ~*/stream 0;
     ~*/watch 0;
     ~*/live 0;
+    
+    # Plex-specific patterns (query parameter aware)
+    ~*/web/.*\.(css|js|json) 0;
+    ~*/identity(\?.*)?$ 0;
+    ~*/media/providers(\?.*)?$ 0;
+    ~*/:/prefs(\?.*)?$ 0;
+    ~*X-Plex-Product= 0;
+    ~*X-Plex-Client-Identifier= 0;
+    ~*X-Plex-Token= 0;
 }
 EOF
 else
