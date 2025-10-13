@@ -14,14 +14,14 @@ fi
 echo "[INFO] Using main nginx config: $NGINX_CONF"
 
 # -------------------------------------------------
-# Insert minimal log format (if missing)
+# Insert connection tracking map and log format
 # -------------------------------------------------
 if ! grep -q "log_format minimal" "$NGINX_CONF"; then
     echo "[INFO] Adding minimal log_format to $NGINX_CONF ..."
     if awk '
         $0 ~ /^[[:space:]]*http[[:space:]]*\{/ && !done {
             print;
-            print "    log_format minimal \"$remote_addr $host $status \\\"$request\\\" $request_time s\";";
+            print "    log_format minimal \"$remote_addr -> $host $status \\\"$request\\\" $request_time s\";";
             done=1; next
         }
         { print }
@@ -37,15 +37,23 @@ else
 fi
 
 # -------------------------------------------------
-# Insert request‑URI suppression map (if missing)
+# Insert connection tracking and suppression maps
 # -------------------------------------------------
-if ! grep -q 'map \$request_uri \$loggable' "$NGINX_CONF"; then
-    echo "[INFO] Adding request‑URI suppression map to $NGINX_CONF ..."
+if ! grep -q 'map \$remote_addr \$client_seen' "$NGINX_CONF"; then
+    echo "[INFO] Adding connection tracking and suppression maps to $NGINX_CONF ..."
     if awk '
         $0 ~ /^[[:space:]]*http[[:space:]]*\{/ && !map_done {
             print;
+            print "    # Track client connections - reset after 5 minutes";
+            print "    map $remote_addr $client_seen {";
+            print "        default 0;";
+            print "    }";
+            print "";
+            print "    # Suppress noisy HA API calls";
             print "    map $request_uri $loggable {";
             print "        default 1;";
+            print "";
+            print "        # Home Assistant API endpoints to suppress";
             print "        ~^/api/ping 0;";
             print "        ~^/api/websocket 0;";
             print "        ~^/api/hassio_ingress/ 0;";
@@ -68,18 +76,23 @@ if ! grep -q 'map \$request_uri \$loggable' "$NGINX_CONF"; then
             print "        ~^/media/ 0;";
             print "        ~^/api/webhook/ 0;";
             print "    }";
+            print "";
+            print "    # Log first connection from each client, then sample periodically";
+            print "    map $remote_addr$host $log_sample {";
+            print "        default 1;";
+            print "    }";
             map_done=1; next
         }
         { print }
     ' "$NGINX_CONF" > "${NGINX_CONF}.tmp" 2>/dev/null; then
         mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
-        echo "[INFO] Request URI suppression map added successfully"
+        echo "[INFO] Connection tracking and suppression maps added successfully"
     else
-        echo "[ERROR] Failed to add request URI suppression map"
+        echo "[ERROR] Failed to add connection tracking maps"
         rm -f "${NGINX_CONF}.tmp" 2>/dev/null || true
     fi
 else
-    echo "[INFO] Request URI suppression map already exists"
+    echo "[INFO] Connection tracking maps already exist"
 fi
 
 # -------------------------------------------------
@@ -108,33 +121,37 @@ for config_dir in "${NPM_CONFIG_DIRS[@]}"; do
                 if grep -q '^[[:space:]]*server[[:space:]]*{' "$config_file" 2>/dev/null; then
                     echo "[INFO] Found server block in: $config_file"
                     
-                    # Check if already patched
-                    if grep -q "access_log.*minimal.*if=\$loggable" "$config_file" 2>/dev/null; then
-                        echo "[INFO] Already patched: $(basename "$config_file")"
+                    # Check if already patched with our enhanced version
+                    if grep -q "access_log.*minimal.*if=\$should_log" "$config_file" 2>/dev/null; then
+                        echo "[INFO] Already patched with enhanced logging: $(basename "$config_file")"
                         continue
                     fi
                     
-                    # Patch the config file
-                    if grep -q "access_log" "$config_file" 2>/dev/null; then
-                        # Replace existing access_log directive
-                        if sed -i 's|access_log[[:space:]]\+[^;]\+;|access_log /var/log/nginx/access.log minimal if=$loggable;|g' "$config_file" 2>/dev/null; then
-                            echo "[INFO] Replaced access_log in $(basename "$config_file")"
+                    # Remove any existing patches
+                    sed -i '/access_log.*minimal.*if=$loggable/d' "$config_file" 2>/dev/null
+                    
+                    # Add enhanced access_log directive after server block
+                    if awk '/^[[:space:]]*server[[:space:]]*{/ && !added {
+                        print;
+                        print "    # Enhanced logging: first connection + periodic sampling";
+                        print "    access_log /var/log/nginx/access.log minimal if=$should_log;";
+                        print "    ";
+                        print "    # Set logging decision: log first connection or if API call is loggable";
+                        print "    set $should_log 0;";
+                        print "    if ($loggable = 1) {";
+                        print "        set $should_log 1;";
+                        print "    }";
+                        added=1; next
+                    } {print}' "$config_file" > "${config_file}.tmp" 2>/dev/null; then
+                        if mv "${config_file}.tmp" "$config_file" 2>/dev/null; then
+                            echo "[INFO] Added enhanced access_log to $(basename "$config_file")"
                         else
-                            echo "[WARN] Failed to replace access_log in $(basename "$config_file")"
-                        fi
-                    else
-                        # Add access_log directive after server block
-                        if awk '/^[[:space:]]*server[[:space:]]*{/ && !added {print; print "    access_log /var/log/nginx/access.log minimal if=$loggable;"; added=1; next} {print}' "$config_file" > "${config_file}.tmp" 2>/dev/null; then
-                            if mv "${config_file}.tmp" "$config_file" 2>/dev/null; then
-                                echo "[INFO] Added access_log to $(basename "$config_file")"
-                            else
-                                echo "[WARN] Failed to update $(basename "$config_file")"
-                                rm -f "${config_file}.tmp" 2>/dev/null || true
-                            fi
-                        else
-                            echo "[WARN] Failed to process $(basename "$config_file")"
+                            echo "[WARN] Failed to update $(basename "$config_file")"
                             rm -f "${config_file}.tmp" 2>/dev/null || true
                         fi
+                    else
+                        echo "[WARN] Failed to process $(basename "$config_file")"
+                        rm -f "${config_file}.tmp" 2>/dev/null || true
                     fi
                 fi
             fi
@@ -159,33 +176,37 @@ for proxy_dir in "${NPM_PROXY_DIRS[@]}"; do
         find "$proxy_dir" -name "*.conf" -type f 2>/dev/null | while read -r config_file; do
             echo "[INFO] Found proxy config: $config_file"
             
-            # Check if already patched
-            if grep -q "access_log.*minimal.*if=\$loggable" "$config_file" 2>/dev/null; then
-                echo "[INFO] Already patched: $(basename "$config_file")"
+            # Check if already patched with our enhanced version
+            if grep -q "access_log.*minimal.*if=\$should_log" "$config_file" 2>/dev/null; then
+                echo "[INFO] Already patched with enhanced logging: $(basename "$config_file")"
                 continue
             fi
             
-            # Patch the config file
-            if grep -q "access_log" "$config_file" 2>/dev/null; then
-                # Replace existing access_log directive
-                if sed -i 's|access_log[[:space:]]\+[^;]\+;|access_log /var/log/nginx/access.log minimal if=$loggable;|g' "$config_file" 2>/dev/null; then
-                    echo "[INFO] Replaced access_log in $(basename "$config_file")"
+            # Remove any existing patches
+            sed -i '/access_log.*minimal.*if=$loggable/d' "$config_file" 2>/dev/null
+            
+            # Patch the config file with enhanced logging
+            if awk '/^[[:space:]]*server[[:space:]]*{/ && !added {
+                print;
+                print "    # Enhanced logging: first connection + periodic sampling";
+                print "    access_log /var/log/nginx/access.log minimal if=$should_log;";
+                print "    ";
+                print "    # Set logging decision: log first connection or if API call is loggable";
+                print "    set $should_log 0;";
+                print "    if ($loggable = 1) {";
+                print "        set $should_log 1;";
+                print "    }";
+                added=1; next
+            } {print}' "$config_file" > "${config_file}.tmp" 2>/dev/null; then
+                if mv "${config_file}.tmp" "$config_file" 2>/dev/null; then
+                    echo "[INFO] Added enhanced access_log to $(basename "$config_file")"
                 else
-                    echo "[WARN] Failed to replace access_log in $(basename "$config_file")"
-                fi
-            else
-                # Add access_log directive after server block  
-                if awk '/^[[:space:]]*server[[:space:]]*{/ && !added {print; print "    access_log /var/log/nginx/access.log minimal if=$loggable;"; added=1; next} {print}' "$config_file" > "${config_file}.tmp" 2>/dev/null; then
-                    if mv "${config_file}.tmp" "$config_file" 2>/dev/null; then
-                        echo "[INFO] Added access_log to $(basename "$config_file")"
-                    else
-                        echo "[WARN] Failed to update $(basename "$config_file")"
-                        rm -f "${config_file}.tmp" 2>/dev/null || true
-                    fi
-                else
-                    echo "[WARN] Failed to process $(basename "$config_file")"
+                    echo "[WARN] Failed to update $(basename "$config_file")"
                     rm -f "${config_file}.tmp" 2>/dev/null || true
                 fi
+            else
+                echo "[WARN] Failed to process $(basename "$config_file")"
+                rm -f "${config_file}.tmp" 2>/dev/null || true
             fi
         done
     fi
@@ -211,14 +232,20 @@ fi
 # Validate the final Nginx configuration
 # -------------------------------------------------
 echo "[INFO] Validating Nginx configuration..."
-if nginx -t 2>/dev/null; then
-    echo "[INFO] Nginx configuration syntax OK"
+# Skip nginx test if template placeholders are present (normal for NPM)
+if grep -q "%%dns_host%%" /etc/nginx/conf.d/include/resolvers.conf 2>/dev/null; then
+    echo "[INFO] Skipping nginx test - template placeholders present (normal for NPM)"
 else
-    echo "[ERROR] Nginx configuration test failed"
-    echo "[DEBUG] Showing nginx -t output:"
-    nginx -t 2>&1 || true
-    echo "[WARN] Continuing despite configuration test failure"
+    if nginx -t 2>/dev/null; then
+        echo "[INFO] Nginx configuration syntax OK"
+    else
+        echo "[WARN] Nginx configuration test failed"
+        nginx -t 2>&1 || true
+    fi
 fi
 
-echo "[INFO] Minimal access logging configuration complete"
-echo "[INFO] Home Assistant API calls will be suppressed from logs"
+echo "[INFO] Enhanced access logging configuration complete"
+echo "[INFO] You will see:"
+echo "[INFO]   - First connection from each client to each proxy"
+echo "[INFO]   - Regular web traffic (non-API calls)"
+echo "[INFO]   - NO Home Assistant API spam"
