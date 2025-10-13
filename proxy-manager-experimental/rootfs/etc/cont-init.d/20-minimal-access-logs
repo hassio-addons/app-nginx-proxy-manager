@@ -85,54 +85,42 @@ else
 fi
 
 # -------------------------------------------------
-# Remove the force patching section - it's causing issues
-# Just use the simple find approach that's working
+# Patch ONLY proxy host configs (preserve NPM UI functionality)
 # -------------------------------------------------
-echo "[INFO] Patching nginx configuration files with access_log directives..."
-
-# Simple approach - patch any file with server blocks
-find /etc/nginx /config/nginx /opt/nginx-proxy-manager -name "*.conf" -type f 2>/dev/null | while read -r config_file; do
-    if [[ -f "$config_file" ]] && grep -q '^[[:space:]]*server[[:space:]]*{' "$config_file" 2>/dev/null; then
-        echo "[INFO] Found server block in: $config_file"
-        
-        # Skip if already patched
-        if grep -q "access_log.*minimal.*if=\$loggable" "$config_file" 2>/dev/null; then
-            echo "[INFO] Already patched: $(basename "$config_file")"
-            continue
-        fi
-        
-        # Remove any existing access_log lines and add our conditional one
-        if awk '
-            /^[[:space:]]*access_log/ { next }  # Remove existing access_log lines
-            /^[[:space:]]*server[[:space:]]*{/ && !added {
-                print;
-                print "    access_log /var/log/nginx/access.log minimal if=$loggable;";
-                added=1; next
-            }
-            { print }
-        ' "$config_file" > "${config_file}.tmp" 2>/dev/null; then
-            if mv "${config_file}.tmp" "$config_file" 2>/dev/null; then
-                echo "[INFO] Successfully patched $(basename "$config_file")"
-            else
-                echo "[WARN] Failed to update $(basename "$config_file")"
-                rm -f "${config_file}.tmp" 2>/dev/null || true
-            fi
+echo "[INFO] Patching proxy host configurations (preserve per-host log files)..."
+for proxy_file in /config/nginx/proxy_host/*.conf; do
+    [[ -f "$proxy_file" ]] || continue
+    
+    if grep -q "access_log.*minimal.*if=\$loggable" "$proxy_file" 2>/dev/null; then
+        echo "[INFO] Already patched: $(basename "$proxy_file")"
+        continue
+    fi
+    
+    # Preserve the original log path; replace options with 'minimal if=$loggable'
+    # Example: 'access_log /data/logs/proxy_host-1.log proxy' -> 'access_log /data/logs/proxy_host-1.log minimal if=$loggable'
+    if sed -r -i 's|^([[:space:]]*)access_log[[:space:]]+([^[:space:];]+)[^;]*;|\1access_log \2 minimal if=$loggable;|g' "$proxy_file"; then
+        if grep -q "access_log .*minimal.*if=\$loggable" "$proxy_file"; then
+            echo "[INFO] Patched $(basename "$proxy_file")"
         else
-            echo "[WARN] Failed to process $(basename "$config_file")"
-            rm -f "${config_file}.tmp" 2>/dev/null || true
+            echo "[WARN] No access_log directive found in $(basename "$proxy_file"); adding new one"
+            # Add access_log directive after server block if none exists
+            if awk '/^[[:space:]]*server[[:space:]]*{/ && !added {print; print "    access_log /data/logs/proxy_host-'"$(basename "$proxy_file" .conf)"'.log minimal if=$loggable;"; added=1; next} {print}' "$proxy_file" > "${proxy_file}.tmp" 2>/dev/null; then
+                if mv "${proxy_file}.tmp" "$proxy_file" 2>/dev/null; then
+                    echo "[INFO] Added access_log to $(basename "$proxy_file")"
+                else
+                    echo "[ERROR] Failed to add access_log to $(basename "$proxy_file")"
+                    rm -f "${proxy_file}.tmp" 2>/dev/null || true
+                fi
+            else
+                echo "[ERROR] Failed to create access_log for $(basename "$proxy_file")"
+                rm -f "${proxy_file}.tmp" 2>/dev/null || true
+            fi
         fi
+    else
+        echo "[ERROR] Failed to patch $(basename "$proxy_file")" >&2
+        exit 1
     fi
 done
-
-# -------------------------------------------------
-# Also check if we need to update the default log format in nginx.conf
-# -------------------------------------------------
-if grep -q "access_log.*/var/log/nginx/access.log" "$NGINX_CONF" && ! grep -q "access_log.*minimal.*if=\$loggable" "$NGINX_CONF"; then
-    echo "[INFO] Updating main nginx.conf access_log directive..."
-    sed -i 's|access_log[[:space:]]\+/var/log/nginx/access.log[^;]*;|access_log /var/log/nginx/access.log minimal if=$loggable;|g' "$NGINX_CONF" 2>/dev/null && \
-        echo "[INFO] Updated main access_log directive" || \
-        echo "[WARN] Failed to update main access_log directive"
-fi
 
 # -------------------------------------------------
 # Ensure log directory exists
@@ -172,3 +160,4 @@ echo "[INFO] The following Home Assistant API calls should now be suppressed:"
 echo "[INFO]   - /auth/token, /manifest.json, /service_worker.js"
 echo "[INFO]   - /api/websocket, /api/calendars/, /api/webhook/"
 echo "[INFO]   - /static/, /frontend_latest/, /local/, /media/"
+echo "[INFO] NPM per-host logging functionality preserved"
