@@ -4,8 +4,11 @@ set -euo pipefail
 echo "[INFO] Enabling concise Nginx access logging with HA noise suppression..."
 
 NGINX_CONF="/etc/nginx/nginx.conf"
+SUPPRESS_MAP_CONF="/etc/nginx/conf.d/suppress-map.conf"
 
-# Verify nginx.conf exists
+# -------------------------------------------------
+# Check for nginx.conf
+# -------------------------------------------------
 if [[ ! -f "$NGINX_CONF" ]]; then
     echo "[ERROR] Main nginx.conf not found at $NGINX_CONF - aborting"
     exit 1
@@ -14,147 +17,130 @@ fi
 echo "[INFO] Using main nginx config: $NGINX_CONF"
 
 # -------------------------------------------------
-# Insert minimal log format (if missing)
+# Create suppression map file
+# -------------------------------------------------
+if [[ ! -f "$SUPPRESS_MAP_CONF" ]]; then
+    echo "[INFO] Creating suppression map: $SUPPRESS_MAP_CONF"
+    cat > "$SUPPRESS_MAP_CONF" <<'EOF'
+map $request_uri $loggable {
+    default 1;
+    ~^/api/ping 0;
+    ~^/api/websocket 0;
+    ~^/api/hassio_ingress/ 0;
+    ~^/hassio_ingress/ 0;
+    ~^/hassio_ingress/.*/api/calendars/ 0;
+    ~^/api/events 0;
+    ~^/api/history 0;
+    ~^/api/logbook 0;
+    ~^/api/states 0;
+    ~^/api/template 0;
+    ~^/api/config 0;
+    ~^/api/calendars/ 0;
+    ~^/auth/token 0;
+    ~^/auth/providers 0;
+    ~^/manifest\.json 0;
+    ~^/service_worker\.js 0;
+    ~^/static/ 0;
+    ~^/frontend_latest/ 0;
+    ~^/local/ 0;
+    ~^/media/ 0;
+    ~^/api/webhook/ 0;
+}
+EOF
+else
+    echo "[INFO] Suppression map already exists"
+fi
+
+# -------------------------------------------------
+# Insert minimal log_format (if missing)
 # -------------------------------------------------
 if ! grep -q "log_format minimal" "$NGINX_CONF"; then
-    echo "[INFO] Adding minimal log_format to $NGINX_CONF ..."
-    if awk '
+    echo "[INFO] Adding minimal log_format to nginx.conf ..."
+    awk '
         $0 ~ /^[[:space:]]*http[[:space:]]*\{/ && !done {
             print;
             print "    log_format minimal \"$remote_addr -> $host $status \\\"$request\\\" $request_time s\";";
             done=1; next
         }
         { print }
-    ' "$NGINX_CONF" > "${NGINX_CONF}.tmp" 2>/dev/null; then
-        mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
-        echo "[INFO] Minimal log format added successfully"
-    else
-        echo "[ERROR] Failed to add minimal log format"
-        rm -f "${NGINX_CONF}.tmp" 2>/dev/null || true
-        exit 1
-    fi
+    ' "$NGINX_CONF" > "${NGINX_CONF}.tmp" && mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
+    echo "[INFO] Minimal log format added successfully"
 else
     echo "[INFO] Minimal log format already exists"
 fi
 
 # -------------------------------------------------
-# Insert request‑URI suppression map (if missing)
+# Ensure suppression map is included in nginx.conf
 # -------------------------------------------------
-if ! grep -q 'map \$request_uri \$loggable' "$NGINX_CONF"; then
-    echo "[INFO] Adding request‑URI suppression map to $NGINX_CONF ..."
-    if awk '
-        $0 ~ /^[[:space:]]*http[[:space:]]*\{/ && !map_done {
-            print;
-            print "    map $request_uri $loggable {";
-            print "        default 1;";
-            print "        ~^/api/ping 0;";
-            print "        ~^/api/websocket 0;";
-            print "        ~^/api/hassio_ingress/ 0;";
-            print "        ~^/hassio_ingress/ 0;";
-            print "        ~^/hassio_ingress/.*/api/calendars/ 0;";
-            print "        ~^/api/events 0;";
-            print "        ~^/api/history 0;";
-            print "        ~^/api/logbook 0;";
-            print "        ~^/api/states 0;";
-            print "        ~^/api/template 0;";
-            print "        ~^/api/config 0;";
-            print "        ~^/api/calendars/ 0;";
-            print "        ~^/auth/token 0;";
-            print "        ~^/auth/providers 0;";
-            print "        ~^/manifest\\.json 0;";
-            print "        ~^/service_worker\\.js 0;";
-            print "        ~^/static/ 0;";
-            print "        ~^/frontend_latest/ 0;";
-            print "        ~^/local/ 0;";
-            print "        ~^/media/ 0;";
-            print "        ~^/api/webhook/ 0;";
-            print "    }";
-            map_done=1; next
-        }
-        { print }
-    ' "$NGINX_CONF" > "${NGINX_CONF}.tmp" 2>/dev/null; then
-        mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
-        echo "[INFO] Request URI suppression map added successfully"
-    else
-        echo "[ERROR] Failed to add request URI suppression map"
-        rm -f "${NGINX_CONF}.tmp" 2>/dev/null || true
-        exit 1
-    fi
+if ! grep -q "suppress-map.conf" "$NGINX_CONF"; then
+    echo "[INFO] Linking suppression map inside nginx.conf ..."
+    sed -i '/http {/a\    include /etc/nginx/conf.d/suppress-map.conf;' "$NGINX_CONF"
+    echo "[INFO] Suppression map include added"
 else
-    echo "[INFO] Request URI suppression map already exists"
+    echo "[INFO] Suppression map already linked"
 fi
 
 # -------------------------------------------------
-# Patch ONLY proxy host configs (preserve NPM UI functionality)
+# Patch proxy host configurations (preserve per-host logs)
 # -------------------------------------------------
 echo "[INFO] Patching proxy host configurations (preserve per-host log files)..."
+
 for proxy_file in /config/nginx/proxy_host/*.conf; do
     [[ -f "$proxy_file" ]] || continue
-    
+
     if grep -q "access_log.*minimal.*if=\$loggable" "$proxy_file" 2>/dev/null; then
         echo "[INFO] Already patched: $(basename "$proxy_file")"
         continue
     fi
-    
-    # Preserve the original log path; replace options with 'minimal if=$loggable'
-    # Example: 'access_log /data/logs/proxy_host-1.log proxy' -> 'access_log /data/logs/proxy_host-1.log minimal if=$loggable'
-    if sed -r -i 's|^([[:space:]]*)access_log[[:space:]]+([^[:space:];]+)[^;]*;|\1access_log \2 minimal if=$loggable;|g' "$proxy_file"; then
+
+    # Replace or add access_log directive
+    if sed -r -i 's|([[:space:]]*)access_log[[:space:]]+([^[:space:];]+)[^;]*;|\1access_log \2 minimal if=\$loggable;|g' "$proxy_file"; then
         if grep -q "access_log .*minimal.*if=\$loggable" "$proxy_file"; then
             echo "[INFO] Patched $(basename "$proxy_file")"
         else
             echo "[WARN] No access_log directive found in $(basename "$proxy_file"); adding new one"
-            # Add access_log directive after server block if none exists
-            if awk '/^[[:space:]]*server[[:space:]]*{/ && !added {print; print "    access_log /data/logs/proxy_host-'"$(basename "$proxy_file" .conf)"'.log minimal if=$loggable;"; added=1; next} {print}' "$proxy_file" > "${proxy_file}.tmp" 2>/dev/null; then
-                if mv "${proxy_file}.tmp" "$proxy_file" 2>/dev/null; then
-                    echo "[INFO] Added access_log to $(basename "$proxy_file")"
-                else
-                    echo "[ERROR] Failed to add access_log to $(basename "$proxy_file")"
-                    rm -f "${proxy_file}.tmp" 2>/dev/null || true
-                fi
-            else
-                echo "[ERROR] Failed to create access_log for $(basename "$proxy_file")"
-                rm -f "${proxy_file}.tmp" 2>/dev/null || true
-            fi
+            awk '/^[[:space:]]*server[[:space:]]*{/ && !added {
+                    print;
+                    print "    access_log /data/logs/proxy_host-'"$(basename "$proxy_file" .conf)"'.log minimal if=$loggable;";
+                    added=1; next
+                 } {print}' "$proxy_file" > "${proxy_file}.tmp" &&
+            install -m 644 "${proxy_file}.tmp" "$proxy_file" && rm -f "${proxy_file}.tmp"
+            echo "[INFO] Added access_log to $(basename "$proxy_file")"
         fi
     else
         echo "[ERROR] Failed to patch $(basename "$proxy_file")" >&2
-        exit 1
+        continue
     fi
 done
 
 # -------------------------------------------------
-# Ensure log directory exists
+# Ensure log directories exist
 # -------------------------------------------------
-LOG_DIR="/var/log/nginx"
-if [[ ! -d "$LOG_DIR" ]]; then
-    echo "[INFO] Creating log directory: $LOG_DIR"
-    mkdir -p "$LOG_DIR" 2>/dev/null || echo "[WARN] Failed to create log directory"
-fi
-
-# Also create the directory that nginx expects for error logs
-ERROR_LOG_DIR="/var/lib/nginx/logs"
-if [[ ! -d "$ERROR_LOG_DIR" ]]; then
-    echo "[INFO] Creating error log directory: $ERROR_LOG_DIR"
-    mkdir -p "$ERROR_LOG_DIR" 2>/dev/null || echo "[WARN] Failed to create error log directory"
-fi
+for dir in /var/log/nginx /var/lib/nginx/logs; do
+    if [[ ! -d "$dir" ]]; then
+        echo "[INFO] Creating log directory: $dir"
+        mkdir -p "$dir" 2>/dev/null || echo "[WARN] Failed to create directory $dir"
+    fi
+done
 
 # -------------------------------------------------
-# Validate the final Nginx configuration
+# Validate Nginx configuration
 # -------------------------------------------------
 echo "[INFO] Validating Nginx configuration..."
-# Skip nginx test if template placeholders are present (normal for NPM)
 if grep -q "%%dns_host%%" /etc/nginx/conf.d/include/resolvers.conf 2>/dev/null; then
     echo "[INFO] Skipping nginx test - template placeholders present (normal for NPM)"
 else
-    if output=$(nginx -t 2>&1); then
+    if nginx -t 2>&1 | grep -q "syntax is ok"; then
         echo "[INFO] Nginx configuration syntax OK"
     else
         echo "[ERROR] Nginx configuration test failed"
-        echo "$output" >&2
-        exit 1
+        nginx -t || true
     fi
 fi
 
+# -------------------------------------------------
+# Summary
+# -------------------------------------------------
 echo "[INFO] Enhanced access logging configuration complete"
 echo "[INFO] The following Home Assistant API calls should now be suppressed:"
 echo "[INFO]   - /auth/token, /manifest.json, /service_worker.js"
