@@ -1,6 +1,6 @@
 ---
 name: UNOFFICIAL Nginx Proxy Manager
-version: 0.0.35-logrotate
+version: 0.0.36-logrotate
 slug: proxy-manager-experimental
 description: Modified Nginx Proxy Manager with logrotate fix
 url: https://github.com/tciprop/addon-nginx-proxy-manager#logrotate_issue
