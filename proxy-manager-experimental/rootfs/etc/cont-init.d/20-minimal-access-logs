@@ -83,79 +83,111 @@ else
 fi
 
 # -------------------------------------------------
-# Find and patch ALL nginx config files with server blocks
+# Patch the actual nginx config files used by NPM
 # -------------------------------------------------
-echo "[INFO] Searching for nginx config files with server blocks..."
+echo "[INFO] Searching for NPM nginx configuration files..."
 
-# Search in common nginx configuration directories
-CONFIG_DIRS=(
-    "/etc/nginx"
-    "/opt/nginx-proxy-manager"
-    "/data/nginx"
+# Key directories where NPM stores its generated configs
+NPM_CONFIG_DIRS=(
+    "/config/nginx"
+    "/etc/nginx/conf.d"
+    "/etc/nginx/sites-enabled"
+    "/opt/nginx-proxy-manager/templates"
 )
 
-# Also add webhook to the suppression list since I see those in your logs
-SUPPRESSED_PATHS=(
-    "/api/ping"
-    "/api/websocket" 
-    "/api/hassio_ingress/"
-    "/hassio_ingress/"
-    "/api/events"
-    "/api/history"
-    "/api/logbook"
-    "/api/states"
-    "/api/template"
-    "/api/config"
-    "/api/calendars/"
-    "/auth/token"
-    "/auth/providers"
-    "/manifest.json"
-    "/service_worker.js"
-    "/static/"
-    "/frontend_latest/"
-    "/local/"
-    "/media/"
-    "/api/webhook/"
-)
-
-for dir in "${CONFIG_DIRS[@]}"; do
-    if [[ -d "$dir" ]]; then
-        echo "[DEBUG] Searching in $dir for server blocks..."
-        # Use find to locate all .conf files, then check if they contain server blocks
+for config_dir in "${NPM_CONFIG_DIRS[@]}"; do
+    if [[ -d "$config_dir" ]]; then
+        echo "[INFO] Processing config directory: $config_dir"
+        
+        # Find all .conf files in this directory
         while IFS= read -r -d '' config_file; do
-            if [[ -f "$config_file" ]] && grep -q '^[[:space:]]*server[[:space:]]*{' "$config_file" 2>/dev/null; then
-                echo "[INFO] Found server block in: $config_file"
+            if [[ -f "$config_file" ]]; then
+                echo "[DEBUG] Checking: $config_file"
                 
-                # Check if this file already has our access_log directive
-                if grep -q "access_log.*minimal.*if=\$loggable" "$config_file" 2>/dev/null; then
-                    echo "[INFO] Already patched: $(basename "$config_file")"
-                    continue
-                fi
-                
-                # Patch the config file
-                if grep -q "access_log" "$config_file" 2>/dev/null; then
-                    # Replace existing access_log lines
-                    if sed -i -E 's|^([[:space:]]*)access_log[[:space:]]+[^;]+;|\1access_log /var/log/nginx/access.log minimal if=$loggable;|g' "$config_file" 2>/dev/null; then
-                        echo "[INFO] Replaced access_log in $(basename "$config_file")"
-                    else
-                        echo "[WARN] Failed to replace access_log in $(basename "$config_file")"
+                # Check if file contains server blocks
+                if grep -q '^[[:space:]]*server[[:space:]]*{' "$config_file" 2>/dev/null; then
+                    echo "[INFO] Found server block in: $config_file"
+                    
+                    # Check if already patched
+                    if grep -q "access_log.*minimal.*if=\$loggable" "$config_file" 2>/dev/null; then
+                        echo "[INFO] Already patched: $(basename "$config_file")"
+                        continue
                     fi
-                else
-                    # Add access_log after server block
-                    if awk '/^[[:space:]]*server[[:space:]]*{/ && !added {print; print "    access_log /var/log/nginx/access.log minimal if=$loggable;"; added=1; next} {print}' "$config_file" > "${config_file}.tmp" 2>/dev/null; then
-                        if mv "${config_file}.tmp" "$config_file" 2>/dev/null; then
-                            echo "[INFO] Added access_log to $(basename "$config_file")"
+                    
+                    # Patch the config file
+                    if grep -q "access_log" "$config_file" 2>/dev/null; then
+                        # Replace existing access_log directive
+                        if sed -i 's|access_log[[:space:]]\+[^;]\+;|access_log /var/log/nginx/access.log minimal if=$loggable;|g' "$config_file" 2>/dev/null; then
+                            echo "[INFO] Replaced access_log in $(basename "$config_file")"
                         else
-                            echo "[WARN] Failed to update $(basename "$config_file")"
-                            rm -f "${config_file}.tmp" 2>/dev/null || true
+                            echo "[WARN] Failed to replace access_log in $(basename "$config_file")"
                         fi
                     else
-                        echo "[WARN] Failed to process $(basename "$config_file")"
-                        rm -f "${config_file}.tmp" 2>/dev/null || true
+                        # Add access_log directive after server block
+                        if awk '/^[[:space:]]*server[[:space:]]*{/ && !added {print; print "    access_log /var/log/nginx/access.log minimal if=$loggable;"; added=1; next} {print}' "$config_file" > "${config_file}.tmp" 2>/dev/null; then
+                            if mv "${config_file}.tmp" "$config_file" 2>/dev/null; then
+                                echo "[INFO] Added access_log to $(basename "$config_file")"
+                            else
+                                echo "[WARN] Failed to update $(basename "$config_file")"
+                                rm -f "${config_file}.tmp" 2>/dev/null || true
+                            fi
+                        else
+                            echo "[WARN] Failed to process $(basename "$config_file")"
+                            rm -f "${config_file}.tmp" 2>/dev/null || true
+                        fi
                     fi
                 fi
             fi
-        done < <(find "$dir" -name "*.conf" -type f -print0 2>/dev/null)
+        done < <(find "$config_dir" -name "*.conf" -type f -print0 2>/dev/null)
+    else
+        echo "[DEBUG] Directory not found: $config_dir"
+    fi
+done
+
+# -------------------------------------------------
+# Also check for specific NPM proxy host configs
+# -------------------------------------------------
+NPM_PROXY_DIRS=(
+    "/config/nginx/proxy_host"
+    "/config/nginx/redirection_host" 
+    "/config/nginx/dead_host"
+)
+
+for proxy_dir in "${NPM_PROXY_DIRS[@]}"; do
+    if [[ -d "$proxy_dir" ]]; then
+        echo "[INFO] Processing NPM proxy directory: $proxy_dir"
+        find "$proxy_dir" -name "*.conf" -type f 2>/dev/null | while read -r config_file; do
+            echo "[INFO] Found proxy config: $config_file"
+            
+            # Check if already patched
+            if grep -q "access_log.*minimal.*if=\$loggable" "$config_file" 2>/dev/null; then
+                echo "[INFO] Already patched: $(basename "$config_file")"
+                continue
+            fi
+            
+            # Patch the config file
+            if grep -q "access_log" "$config_file" 2>/dev/null; then
+                # Replace existing access_log directive
+                if sed -i 's|access_log[[:space:]]\+[^;]\+;|access_log /var/log/nginx/access.log minimal if=$loggable;|g' "$config_file" 2>/dev/null; then
+                    echo "[INFO] Replaced access_log in $(basename "$config_file")"
+                else
+                    echo "[WARN] Failed to replace access_log in $(basename "$config_file")"
+                fi
+            else
+                # Add access_log directive after server block  
+                if awk '/^[[:space:]]*server[[:space:]]*{/ && !added {print; print "    access_log /var/log/nginx/access.log minimal if=$loggable;"; added=1; next} {print}' "$config_file" > "${config_file}.tmp" 2>/dev/null; then
+                    if mv "${config_file}.tmp" "$config_file" 2>/dev/null; then
+                        echo "[INFO] Added access_log to $(basename "$config_file")"
+                    else
+                        echo "[WARN] Failed to update $(basename "$config_file")"
+                        rm -f "${config_file}.tmp" 2>/dev/null || true
+                    fi
+                else
+                    echo "[WARN] Failed to process $(basename "$config_file")"
+                    rm -f "${config_file}.tmp" 2>/dev/null || true
+                fi
+            fi
+        done
     fi
 done
 
@@ -189,7 +221,4 @@ else
 fi
 
 echo "[INFO] Minimal access logging configuration complete"
-echo "[INFO] The following paths will not be logged:"
-for path in "${SUPPRESSED_PATHS[@]}"; do
-    echo "[INFO]   - $path"
-done
+echo "[INFO] Home Assistant API calls will be suppressed from logs"
