@@ -17,34 +17,47 @@ fi
 echo "[INFO] Using main nginx config: $NGINX_CONF"
 
 # -------------------------------------------------
-# Create suppression map file
+# Create generalized suppression map file
 # -------------------------------------------------
 if [[ ! -f "$SUPPRESS_MAP_CONF" ]]; then
-    echo "[INFO] Creating suppression map: $SUPPRESS_MAP_CONF"
+    echo "[INFO] Creating generalized suppression map: $SUPPRESS_MAP_CONF"
     cat > "$SUPPRESS_MAP_CONF" <<'EOF'
 map $request_uri $loggable {
     default 1;
-    ~^/api/ping 0;
-    ~^/api/websocket 0;
-    ~^/api/hassio_ingress/ 0;
-    ~^/hassio_ingress/ 0;
-    ~^/hassio_ingress/.*/api/calendars/ 0;
-    ~^/api/events 0;
-    ~^/api/history 0;
-    ~^/api/logbook 0;
-    ~^/api/states 0;
-    ~^/api/template 0;
-    ~^/api/config 0;
-    ~^/api/calendars/ 0;
-    ~^/auth/token 0;
-    ~^/auth/providers 0;
-    ~^/manifest\.json 0;
-    ~^/service_worker\.js 0;
-    ~^/static/ 0;
-    ~^/frontend_latest/ 0;
-    ~^/local/ 0;
-    ~^/media/ 0;
-    ~^/api/webhook/ 0;
+    
+    # Common web application noise patterns
+    ~*\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)(\?.*)?$ 0;
+    ~*/(favicon\.ico|robots\.txt) 0;
+    ~*/(health|status|metrics|ping|ready|live) 0;
+    ~*/api/ 0;
+    ~*/websocket 0;
+    ~*/socket\.io 0;
+    ~*/static/ 0;
+    ~*/assets/ 0;
+    ~*/img/ 0;
+    ~*/css/ 0;
+    ~*/js/ 0;
+    ~*/fonts/ 0;
+    ~*/vendor/ 0;
+    ~*/build/ 0;
+    ~*/dist/ 0;
+    ~*/public/ 0;
+    ~*/_next/ 0;
+    ~*/webpack/ 0;
+    ~*/manifest 0;
+    ~*/service-worker 0;
+    ~*/sw\.js 0;
+    
+    # Rate-based suppression simulation (frequent endpoints)
+    ~*/refresh 0;
+    ~*/poll 0;
+    ~*/update 0;
+    ~*/sync 0;
+    ~*/notifications 0;
+    ~*/events 0;
+    ~*/stream 0;
+    ~*/watch 0;
+    ~*/live 0;
 }
 EOF
 else
