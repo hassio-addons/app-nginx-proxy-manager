@@ -85,11 +85,12 @@ else
 fi
 
 # -------------------------------------------------
-# Patch ALL nginx config files - SIMPLE approach
+# Remove the force patching section - it's causing issues
+# Just use the simple find approach that's working
 # -------------------------------------------------
-echo "[INFO] Patching nginx configuration files..."
+echo "[INFO] Patching nginx configuration files with access_log directives..."
 
-# Direct approach - patch any file with server blocks
+# Simple approach - patch any file with server blocks
 find /etc/nginx /config/nginx /opt/nginx-proxy-manager -name "*.conf" -type f 2>/dev/null | while read -r config_file; do
     if [[ -f "$config_file" ]] && grep -q '^[[:space:]]*server[[:space:]]*{' "$config_file" 2>/dev/null; then
         echo "[INFO] Found server block in: $config_file"
@@ -100,64 +101,38 @@ find /etc/nginx /config/nginx /opt/nginx-proxy-manager -name "*.conf" -type f 2>
             continue
         fi
         
-        # Backup original file
-        cp "$config_file" "${config_file}.bak" 2>/dev/null
-        
-        # Simple sed approach - replace any access_log line
-        if sed -i 's|^[[:space:]]*access_log[[:space:]]\+[^;]\+;|    access_log /var/log/nginx/access.log minimal if=$loggable;|g' "$config_file" 2>/dev/null; then
-            echo "[INFO] Replaced access_log in $(basename "$config_file")"
-        else
-            # If no access_log found, add one after server block
-            if awk '/^[[:space:]]*server[[:space:]]*{/ && !added {print; print "    access_log /var/log/nginx/access.log minimal if=$loggable;"; added=1; next} {print}' "$config_file" > "${config_file}.tmp" 2>/dev/null; then
-                if mv "${config_file}.tmp" "$config_file" 2>/dev/null; then
-                    echo "[INFO] Added access_log to $(basename "$config_file")"
-                else
-                    echo "[WARN] Failed to update $(basename "$config_file") - restoring backup"
-                    mv "${config_file}.bak" "$config_file" 2>/dev/null
-                    rm -f "${config_file}.tmp" 2>/dev/null || true
-                fi
-            else
-                echo "[WARN] Failed to process $(basename "$config_file") - restoring backup"
-                mv "${config_file}.bak" "$config_file" 2>/dev/null
-                rm -f "${config_file}.tmp" 2>/dev/null || true
-            fi
-        fi
-        
-        # Clean up backup
-        rm -f "${config_file}.bak" 2>/dev/null || true
-    fi
-done
-
-# -------------------------------------------------
-# Force patch the main proxy host configs
-# -------------------------------------------------
-echo "[INFO] Force patching proxy host configurations..."
-for proxy_file in /config/nginx/proxy_host/*.conf; do
-    if [[ -f "$proxy_file" ]]; then
-        echo "[INFO] Force patching: $(basename "$proxy_file")"
-        
-        # Create a clean patch
+        # Remove any existing access_log lines and add our conditional one
         if awk '
+            /^[[:space:]]*access_log/ { next }  # Remove existing access_log lines
             /^[[:space:]]*server[[:space:]]*{/ && !added {
                 print;
                 print "    access_log /var/log/nginx/access.log minimal if=$loggable;";
                 added=1; next
             }
-            /^[[:space:]]*access_log/ { next }  # Remove any existing access_log lines
             { print }
-        ' "$proxy_file" > "${proxy_file}.tmp" 2>/dev/null; then
-            if mv "${proxy_file}.tmp" "$proxy_file" 2>/dev/null; then
-                echo "[INFO] Successfully patched $(basename "$proxy_file")"
+        ' "$config_file" > "${config_file}.tmp" 2>/dev/null; then
+            if mv "${config_file}.tmp" "$config_file" 2>/dev/null; then
+                echo "[INFO] Successfully patched $(basename "$config_file")"
             else
-                echo "[ERROR] Failed to replace $(basename "$proxy_file")"
-                rm -f "${proxy_file}.tmp" 2>/dev/null || true
+                echo "[WARN] Failed to update $(basename "$config_file")"
+                rm -f "${config_file}.tmp" 2>/dev/null || true
             fi
         else
-            echo "[ERROR] Failed to create patch for $(basename "$proxy_file")"
-            rm -f "${proxy_file}.tmp" 2>/dev/null || true
+            echo "[WARN] Failed to process $(basename "$config_file")"
+            rm -f "${config_file}.tmp" 2>/dev/null || true
         fi
     fi
 done
+
+# -------------------------------------------------
+# Also check if we need to update the default log format in nginx.conf
+# -------------------------------------------------
+if grep -q "access_log.*/var/log/nginx/access.log" "$NGINX_CONF" && ! grep -q "access_log.*minimal.*if=\$loggable" "$NGINX_CONF"; then
+    echo "[INFO] Updating main nginx.conf access_log directive..."
+    sed -i 's|access_log[[:space:]]\+/var/log/nginx/access.log[^;]*;|access_log /var/log/nginx/access.log minimal if=$loggable;|g' "$NGINX_CONF" 2>/dev/null && \
+        echo "[INFO] Updated main access_log directive" || \
+        echo "[WARN] Failed to update main access_log directive"
+fi
 
 # -------------------------------------------------
 # Ensure log directory exists
@@ -193,4 +168,7 @@ else
 fi
 
 echo "[INFO] Enhanced access logging configuration complete"
-echo "[INFO] Home Assistant API calls should now be suppressed"
+echo "[INFO] The following Home Assistant API calls should now be suppressed:"
+echo "[INFO]   - /auth/token, /manifest.json, /service_worker.js"
+echo "[INFO]   - /api/websocket, /api/calendars/, /api/webhook/"
+echo "[INFO]   - /static/, /frontend_latest/, /local/, /media/"
