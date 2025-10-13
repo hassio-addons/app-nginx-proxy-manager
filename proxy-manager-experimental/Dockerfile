@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:18.1.4
+ARG BUILD_FROM=ghcr.io/hassio-addons/base:18.2.0
 FROM ${BUILD_FROM}
 
 # Required for webpack config of NPM with Node.js 22
