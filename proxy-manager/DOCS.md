@@ -101,9 +101,7 @@ SOFTWARE.
 [contributors]: https://github.com/hassio-addons/addon-nginx-proxy-manager/graphs/contributors
 [discord-ha]: https://discord.gg/c5DvZ4e
 [discord]: https://discord.me/hassioaddons
-[forum]: https://community.home-assistant.io/t/home-assistant-community-add-on-nginx-proxy-manager/111830?u=frenck
-[frenck]: https://github.com/frenck
-[issue]: https://github.com/hassio-addons/addon-nginx-proxy-manager/issues
+[issue]: https://github.com/pinquin87/addon-nginx-proxy-manager/issues
 [reddit]: https://reddit.com/r/homeassistant
-[releases]: https://github.com/hassio-addons/addon-nginx-proxy-manager/releases
+[releases]: https://github.com/pinquin87/addon-nginx-proxy-manager/releases
 [semver]: https://semver.org/spec/v2.0.0.html
