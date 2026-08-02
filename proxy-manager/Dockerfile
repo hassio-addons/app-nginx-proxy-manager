@@ -32,7 +32,7 @@ RUN \
         nginx=1.28.0-r3 \
         nodejs=22.16.0-r2 \
         npm=11.3.0-r1 \
-        openssl=3.5.4-r0 \
+        openssl=3.5.7-r0 \
         py3-pip=25.1.1-r0 \
         python3=3.12.12-r0 \
         yarn=1.22.22-r1 \
