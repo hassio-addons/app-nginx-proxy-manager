@@ -31,7 +31,7 @@ ln -s /config /opt/nginx-proxy-manager/config
 
 ln -sf /config/letsencrypt /etc/letsencrypt
 
-# NGinx needs this file to be able to start.
+# Nginx needs this file to be able to start.
 # It will not continously log into it.
 mkdir -p /var/lib/nginx/logs
 touch /var/lib/nginx/logs/error.log

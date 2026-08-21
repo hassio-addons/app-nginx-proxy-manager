@@ -63,7 +63,7 @@ You have several options to get them answered:
 - The Home Assistant [Community Forum][forum].
 - Join the [Reddit subreddit][reddit] in [/r/homeassistant][reddit]
 
-You could also [open an issue here][issue] GitHub.
+You could also [open an issue here][issue] on GitHub.
 
 ## Authors & contributors
 
@@ -101,7 +101,7 @@ SOFTWARE.
 [contributors]: https://github.com/hassio-addons/app-nginx-proxy-manager/graphs/contributors
 [discord-ha]: https://discord.gg/c5DvZ4e
 [discord]: https://discord.me/hassioaddons
-[forum]: https://community.home-assistant.io/t/home-assistant-community-app-nginx-proxy-manager/111830?u=frenck
+[forum]: https://community.home-assistant.io/t/home-assistant-community-add-on-nginx-proxy-manager/111830?u=frenck
 [frenck]: https://github.com/frenck
 [issue]: https://github.com/hassio-addons/app-nginx-proxy-manager/issues
 [reddit]: https://reddit.com/r/homeassistant

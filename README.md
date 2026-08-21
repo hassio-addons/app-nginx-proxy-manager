@@ -47,7 +47,7 @@ You have several options to get them answered:
 - The Home Assistant [Community Forum][forum].
 - Join the [Reddit subreddit][reddit] in [/r/homeassistant][reddit]
 
-You could also [open an issue here][issue] GitHub.
+You could also [open an issue here][issue] on GitHub.
 
 ## Contributing
 
@@ -55,7 +55,7 @@ This is an active open-source project. We are always open to people who want to
 use the code or contribute to it.
 
 We have set up a separate document containing our
-[contribution guidelines](CONTRIBUTING.md).
+[contribution guidelines](.github/CONTRIBUTING.md).
 
 Thank you for being involved! :heart_eyes:
 
@@ -114,7 +114,7 @@ SOFTWARE.
 [maintenance-shield]: https://img.shields.io/maintenance/yes/2026.svg
 [patreon-shield]: https://frenck.dev/wp-content/uploads/2019/12/patreon.png
 [patreon]: https://www.patreon.com/frenck
-[project-stage-shield]: https://img.shields.io/badge/project%20stage-experimental-yellow.svg
+[project-stage-shield]: https://img.shields.io/badge/project%20stage-production%20ready-brightgreen.svg
 [reddit]: https://reddit.com/r/homeassistant
 [releases-shield]: https://img.shields.io/github/release/hassio-addons/app-nginx-proxy-manager.svg
 [releases]: https://github.com/hassio-addons/app-nginx-proxy-manager/releases
