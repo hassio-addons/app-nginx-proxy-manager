@@ -20,19 +20,26 @@ mkdir -p \
     /tmp/letsencrypt-lib \
     /tmp/letsencrypt-log \
     /tmp/nginx/body \
-    /tmp/nginx/cache/private\
+    /tmp/nginx/cache/private \
     /tmp/nginx/cache/public \
     /tmp/nginx/proxy \
-    /var/lib/nginx/
+    /var/lib/nginx \
+    || bashio::exit.nok "Could not create the required directories"
 
-ln -s /tmp/nginx /var/tmp/nginx
-ln -s /tmp/nginx /var/lib/nginx/tmp
-ln -s /config /opt/nginx-proxy-manager/config
-
-ln -sf /config/letsencrypt /etc/letsencrypt
+ln -sfn /tmp/nginx /var/tmp/nginx \
+    || bashio::exit.nok "Could not link the Nginx temporary directory"
+ln -sfn /tmp/nginx /var/lib/nginx/tmp \
+    || bashio::exit.nok "Could not link the Nginx working directory"
+ln -sfn /config /opt/nginx-proxy-manager/config \
+    || bashio::exit.nok "Could not link the app configuration directory"
+ln -sfn /config/letsencrypt /etc/letsencrypt \
+    || bashio::exit.nok "Could not link the Let's Encrypt directory"
 
 # Nginx needs this file to be able to start.
 # It will not continously log into it.
-mkdir -p /var/lib/nginx/logs
-touch /var/lib/nginx/logs/error.log
-chmod 777 /var/lib/nginx/logs/error.log
+mkdir -p /var/lib/nginx/logs \
+    || bashio::exit.nok "Could not create the Nginx log directory"
+touch /var/lib/nginx/logs/error.log \
+    || bashio::exit.nok "Could not create the Nginx error log"
+chmod 644 /var/lib/nginx/logs/error.log \
+    || bashio::exit.nok "Could not set permissions on the Nginx error log"
