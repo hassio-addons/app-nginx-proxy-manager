@@ -26,13 +26,13 @@ mkdir -p \
     /var/lib/nginx \
     || bashio::exit.nok "Could not create the required directories"
 
-ln -sfn /tmp/nginx /var/tmp/nginx \
+ln -sfT /tmp/nginx /var/tmp/nginx \
     || bashio::exit.nok "Could not link the Nginx temporary directory"
-ln -sfn /tmp/nginx /var/lib/nginx/tmp \
+ln -sfT /tmp/nginx /var/lib/nginx/tmp \
     || bashio::exit.nok "Could not link the Nginx working directory"
-ln -sfn /config /opt/nginx-proxy-manager/config \
+ln -sfT /config /opt/nginx-proxy-manager/config \
     || bashio::exit.nok "Could not link the app configuration directory"
-ln -sfn /config/letsencrypt /etc/letsencrypt \
+ln -sfT /config/letsencrypt /etc/letsencrypt \
     || bashio::exit.nok "Could not link the Let's Encrypt directory"
 
 # Nginx needs this file to be able to start.
