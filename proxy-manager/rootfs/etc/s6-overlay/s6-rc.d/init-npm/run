@@ -36,19 +36,3 @@ ln -sf /config/letsencrypt /etc/letsencrypt
 mkdir -p /var/lib/nginx/logs
 touch /var/lib/nginx/logs/error.log
 chmod 777 /var/lib/nginx/logs/error.log
-
-# This file generates a dummy SSL certificate
-if ! bashio::fs.directory_exists "/config/nginx/dummycert.pem" && ! bashio::fs.file_exists "/config/nginx/dummykey.pem";
-then
-  bashio::log.info "Generating dummy SSL certificate"
-  openssl req \
-    -new \
-    -newkey rsa:2048 \
-    -days 3650 \
-    -nodes \
-    -x509 \
-    -subj '/O=Nginx Proxy Manager/OU=Dummy Certificate/CN=localhost' \
-    -keyout /config/nginx/dummykey.pem \
-    -out /config/nginx/dummycert.pem \
-    || bashio::exit.nok "Could not generate dummy certificate"
-fi

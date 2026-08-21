@@ -7,16 +7,4 @@
 
 bashio::log.info "Starting Nginx..."
 
-# Create required folders
-mkdir -p \
-  /tmp/nginx/body \
-  /var/log/nginx \
-  /config/custom_ssl \
-  /config/logs \
-  /config/access \
-  /tmp/nginx/cache/public \
-  /tmp/nginx/cache/private \
-  /var/cache/nginx/proxy_temp
-
-# Run
 exec nginx

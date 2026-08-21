@@ -63,7 +63,6 @@ RUN \
     \
     && cd /opt/nginx-proxy-manager \
     && yarn install \
-    && rm -rf /etc/services.d/frontend \
     && rm -rf /opt/nginx-proxy-manager/config \
     \
     && rm -f -r /etc/nginx \
