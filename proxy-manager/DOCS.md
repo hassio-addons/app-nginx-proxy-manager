@@ -35,7 +35,51 @@ comparison to installing any other Home Assistant app.
 
 ## Configuration
 
-This app does not provide any configuration.
+This app does not provide any configuration options.
+
+## Ports
+
+This app binds three ports on your Home Assistant machine:
+
+| Port  | Purpose                                                       |
+| ----- | ------------------------------------------------------------- |
+| `80`  | HTTP entrance, also used by Let's Encrypt to validate domains |
+| `81`  | The admin web interface                                       |
+| `443` | HTTPS entrance                                                |
+
+Ports `80` and `443` need to be free on your machine. If Home Assistant
+itself is serving SSL on port `443`, or another app already uses one of
+these ports, this app will not start. The host side of each port can be
+changed in the app's "Network" configuration.
+
+## Storage
+
+Everything this app stores lives in its own configuration folder, which
+you can reach at `/addon_configs/a0d7b954_nginxproxymanager` with the
+"File editor" or "Samba" apps:
+
+| Item              | Contents                                     |
+| ----------------- | -------------------------------------------- |
+| `database.sqlite` | Your hosts, users, certificates and settings |
+| `access`          | Username and password files for access lists |
+| `custom_ssl`      | Certificates you uploaded yourself           |
+| `letsencrypt`     | Certificates issued by Let's Encrypt         |
+| `logs`            | Certbot logs, excluded from backups          |
+| `nginx`           | The generated Nginx configuration            |
+| `nginx/custom`    | Your own additional Nginx directives         |
+
+Files placed in `nginx/custom` are included by the generated configuration,
+which is how the advanced options in the web interface are applied.
+
+## Troubleshooting
+
+Start with the app's own log, which carries both the Nginx and the Nginx
+Proxy Manager output.
+
+If a certificate fails to issue or renew, certbot writes its own, more
+detailed log to `logs/letsencrypt.log` in the folder above. The most common
+causes are port `80` not being reachable from the internet, or DNS for the
+domain not pointing at your connection.
 
 ## Changelog & Releases
 
