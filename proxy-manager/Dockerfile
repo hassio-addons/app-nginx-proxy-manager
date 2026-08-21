@@ -2,7 +2,7 @@ ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.2
 # hadolint ignore=DL3006
 FROM ${BUILD_FROM}
 
-# Required for webpack config of NPM with Node.js 22
+# Required for webpack config of NPM with Node.js 24
 ENV NODE_OPTIONS="--openssl-legacy-provider"
 
 # Set shell
@@ -16,25 +16,25 @@ ARG NGINX_PROXY_MANAGER_VERSION="v2.12.4"
 # hadolint ignore=DL3003,DL3042
 RUN \
     apk add --no-cache --virtual .build-dependencies \
-        build-base=0.5-r3 \
-        git=2.49.1-r0 \
-        libffi-dev=3.4.8-r0 \
-        openssl-dev=3.5.4-r0 \
+        build-base=0.5-r4 \
+        git=2.54.0-r0 \
+        libffi-dev=3.5.2-r1 \
+        openssl-dev=3.5.7-r0 \
         patch=2.8-r0 \
-        python3-dev=3.12.12-r0 \
+        python3-dev=3.14.7-r1 \
     \
     && apk add --no-cache \
-        apache2-utils=2.4.65-r0 \
-        certbot=4.0.0-r0 \
-        libcap=2.76-r0 \
-        logrotate=3.21.0-r1 \
-        nginx-mod-stream=1.28.0-r3 \
-        nginx=1.28.0-r3 \
-        nodejs=22.16.0-r2 \
-        npm=11.3.0-r1 \
-        openssl=3.5.4-r0 \
-        py3-pip=25.1.1-r0 \
-        python3=3.12.12-r0 \
+        apache2-utils=2.4.68-r0 \
+        certbot=5.6.0-r0 \
+        libcap=2.78-r0 \
+        logrotate=3.22.0-r0 \
+        nginx-mod-stream=1.30.4-r1 \
+        nginx=1.30.4-r1 \
+        nodejs=24.18.1-r0 \
+        npm=11.12.1-r0 \
+        openssl=3.5.7-r0 \
+        py3-pip=26.1.2-r0 \
+        python3=3.14.7-r1 \
         yarn=1.22.22-r1 \
     \
     && yarn global add modclean \
