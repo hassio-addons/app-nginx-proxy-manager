@@ -34,12 +34,12 @@ RUN \
         python3=3.14.7-r1 \
         yarn=1.22.22-r1 \
     \
-    && yarn global add modclean \
+    && yarn global add modclean@3.0.0-beta.1 \
     \
-    && curl -J -L -o /tmp/nginxproxymanager.tar.gz \
+    && curl -fsSL -o /tmp/nginxproxymanager.tar.gz \
         "https://github.com/NginxProxyManager/nginx-proxy-manager/archive/${NGINX_PROXY_MANAGER_VERSION}.tar.gz" \
     && mkdir /app \
-    && tar zxvf \
+    && tar zxf \
         /tmp/nginxproxymanager.tar.gz \
         --strip 1 -C /app \
     \
@@ -48,7 +48,7 @@ RUN \
         || exit 1; done \
     \
     && cd /app/frontend \
-    && yarn install --network-timeout 100000 \
+    && yarn install --frozen-lockfile --network-timeout 100000 \
     && yarn locale-compile \
     && yarn build \
     && rm -rf node_modules \
@@ -56,13 +56,10 @@ RUN \
     && mkdir -p /opt/nginx-proxy-manager/frontend \
     && cp -r /app/frontend/dist/. /opt/nginx-proxy-manager/frontend/ \
     \
-    && cd /app/backend \
-    && yarn install \
-    && rm -rf node_modules \
     && cp -r /app/backend/. /opt/nginx-proxy-manager/ \
     \
     && cd /opt/nginx-proxy-manager \
-    && yarn install \
+    && yarn install --frozen-lockfile \
     && rm -rf /opt/nginx-proxy-manager/config \
     \
     && rm -f -r /etc/nginx \
