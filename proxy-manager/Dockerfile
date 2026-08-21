@@ -34,8 +34,6 @@ RUN \
         python3=3.14.7-r1 \
         yarn=1.22.22-r1 \
     \
-    && yarn global add modclean@3.0.0-beta.1 \
-    \
     && curl -fsSL -o /tmp/nginxproxymanager.tar.gz \
         "https://github.com/NginxProxyManager/nginx-proxy-manager/archive/${NGINX_PROXY_MANAGER_VERSION}.tar.gz" \
     && mkdir /app \
@@ -80,13 +78,6 @@ RUN \
     && mkdir -p \
         /run/nginx \
     \
-    && modclean \
-        --path /opt/nginx-proxy-manager \
-        --no-progress \
-        --keep-empty \
-        --run \
-    \
-    && yarn global remove modclean \
     && yarn cache clean \
     \
     && apk del --purge .build-dependencies \
