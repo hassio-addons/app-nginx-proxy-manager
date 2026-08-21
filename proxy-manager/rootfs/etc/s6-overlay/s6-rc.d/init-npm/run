@@ -1,8 +1,8 @@
 #!/command/with-contenv bashio
 # shellcheck shell=bash
 # ==============================================================================
-# Home Assistant Community Add-on: Nginx Proxy Manager
-# This file applies patches so the add-on becomes compatible
+# Home Assistant Community App: Nginx Proxy Manager
+# This file applies patches so the app becomes compatible
 # ==============================================================================
 mkdir -p \
     /config/access \
