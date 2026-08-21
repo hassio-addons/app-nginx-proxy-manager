@@ -1,0 +1,6 @@
+# Local tooling and editor state
+.claude/
+
+# OS noise
+.DS_Store
+Thumbs.db
