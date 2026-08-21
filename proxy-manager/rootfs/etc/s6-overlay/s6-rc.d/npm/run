@@ -13,6 +13,11 @@ options+=("--max_old_space_size=250")
 
 export NODE_ENV=production
 
+# Upstream reads the certbot version from the environment since v2.13.0,
+# and uses it to pin the DNS plugins it installs.
+CERTBOT_VERSION="$(certbot --version 2>&1 | grep -Eo '[0-9](\.[0-9]+)+')"
+export CERTBOT_VERSION
+
 if bashio::debug; then
   export DEBUG=1
 fi

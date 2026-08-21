@@ -27,8 +27,8 @@ comparison to installing any other Home Assistant app.
 1. Click the "Install" button to install the app.
 1. Start the "Nginx Proxy Manager" app
 1. Check the logs of the "Nginx Proxy Manager" app to see if everything went well.
-1. Click the "OPEN WEB UI" button and login using:
-   `admin@example.com` / `changeme`
+1. Click the "OPEN WEB UI" button and follow the setup wizard to create
+   your administrator account.
 1. Forward port `443` (and optionally `80`) from your router to your
    Home Assistant machine.
 1. Enjoy the app!
