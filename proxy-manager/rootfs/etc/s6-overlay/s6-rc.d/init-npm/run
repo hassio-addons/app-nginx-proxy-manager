@@ -18,7 +18,6 @@ mkdir -p \
     /config/nginx/stream \
     /config/nginx/temp \
     /tmp/letsencrypt-lib \
-    /tmp/letsencrypt-log \
     /tmp/nginx/body \
     /tmp/nginx/cache/private \
     /tmp/nginx/cache/public \
