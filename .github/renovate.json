@@ -3,7 +3,7 @@
   "extends": ["helpers:pinGitHubActionDigests"],
   "rebaseWhen": "behind-base-branch",
   "dependencyDashboard": true,
-  "labels": ["dependencies", "no-stale"],
+  "labels": ["dependencies"],
   "commitMessagePrefix": "⬆️",
   "commitMessageTopic": "{{depName}}",
   "customDatasources": {
@@ -69,16 +69,6 @@
     {
       "groupName": "App base image",
       "matchDatasources": ["docker"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "automerge": true
-    },
-    {
-      "matchManagers": ["pip_requirements"],
-      "addLabels": ["python"],
-      "rangeStrategy": "pin"
-    },
-    {
-      "matchManagers": ["pip_requirements"],
       "matchUpdateTypes": ["minor", "patch"],
       "automerge": true
     },
