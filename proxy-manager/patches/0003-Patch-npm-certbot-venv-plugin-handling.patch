@@ -1,25 +1,32 @@
-From 039b8212a4f409e7e0f853fff1f173193886b7e1 Mon Sep 17 00:00:00 2001
-From: Franck Nijhof <git@frenck.dev>
-Date: Sat, 13 Jan 2024 10:19:57 +0100
+From c2cf11aff40767696c1ea808c89d311bc0db46d5 Mon Sep 17 00:00:00 2001
+From: Franck Nijhof <opensource@frenck.dev>
+Date: Fri, 21 Aug 2026 15:05:01 +0200
 Subject: [PATCH 3/3] Patch npm certbot venv plugin handling
 
+Upstream installs DNS plugins into a Python virtualenv at /opt/certbot.
+This add-on installs certbot from Alpine's package repository instead,
+so there is no virtualenv to activate and the plugins go to the system
+site-packages.
+
+Keeps upstream's dependency quoting and the SETUPTOOLS_USE_DISTUTILS
+environment handling, only dropping the venv activation wrapper.
 ---
  backend/lib/certbot.js | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/backend/lib/certbot.js b/backend/lib/certbot.js
-index eb1966d..57875de 100644
+index 2b9e181..4e01e99 100644
 --- a/backend/lib/certbot.js
 +++ b/backend/lib/certbot.js
-@@ -63,7 +63,7 @@ const certbot = {
- 		plugin.version      = plugin.version.replace(/{{certbot-version}}/g, CERTBOT_VERSION_REPLACEMENT);
- 		plugin.dependencies = plugin.dependencies.replace(/{{certbot-version}}/g, CERTBOT_VERSION_REPLACEMENT);
+@@ -38,7 +38,7 @@ const installPlugin = async (pluginKey) => {
+ 				.join(" ")
+ 		: "";
  
--		const cmd = '. /opt/certbot/bin/activate && pip install --no-cache-dir ' + plugin.dependencies + ' ' + plugin.package_name + plugin.version + ' ' + ' && deactivate';
-+		const cmd = 'pip install ' + plugin.dependencies + ' ' + plugin.package_name + plugin.version + ' ';
- 		return utils.exec(cmd)
- 			.then((result) => {
- 				logger.complete(`Installed ${pluginKey}`);
+-	const cmd = `. /opt/certbot/bin/activate && pip install --no-cache-dir ${quotedDeps} '${plugin.package_name}${plugin.version}' && deactivate`;
++	const cmd = `pip install --no-cache-dir ${quotedDeps} '${plugin.package_name}${plugin.version}'`;
+ 	return utils
+ 		.exec(cmd, { env })
+ 		.then((result) => {
 -- 
-2.42.0
+2.39.5
 

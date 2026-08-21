@@ -2,9 +2,6 @@ ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.2
 # hadolint ignore=DL3006
 FROM ${BUILD_FROM}
 
-# Required for webpack config of NPM with Node.js 24
-ENV NODE_OPTIONS="--openssl-legacy-provider"
-
 # Set shell
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -12,7 +9,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 COPY patches/*.patch /usr/src/
 
 # Setup base
-ARG NGINX_PROXY_MANAGER_VERSION="v2.12.4"
+ARG NGINX_PROXY_MANAGER_VERSION="v2.15.1"
 # hadolint ignore=DL3003,DL3042
 RUN \
     apk add --no-cache --virtual .build-dependencies \
@@ -47,11 +44,13 @@ RUN \
         --strip 1 -C /app \
     \
     && for i in /usr/src/*.patch; do \
-        patch -d /app -p 1 < "${i}"; done \
+        patch -d /app -p 1 --forward --no-backup-if-mismatch < "${i}" \
+        || exit 1; done \
     \
     && cd /app/frontend \
-    && yarn install --ignore-engines --network-timeout 100000 \
-    && yarn build --ignore-engines \
+    && yarn install --network-timeout 100000 \
+    && yarn locale-compile \
+    && yarn build \
     && rm -rf node_modules \
     \
     && mkdir -p /opt/nginx-proxy-manager/frontend \
@@ -61,8 +60,6 @@ RUN \
     && yarn install \
     && rm -rf node_modules \
     && cp -r /app/backend/. /opt/nginx-proxy-manager/ \
-    \
-    && cp -R /app/global/. /opt/nginx-proxy-manager/global/ \
     \
     && cd /opt/nginx-proxy-manager \
     && yarn install \
@@ -77,6 +74,8 @@ RUN \
     && cp /app/docker/rootfs/etc/logrotate.d/nginx-proxy-manager /etc/logrotate.d \
     \
     && sed -i "s#user npm;#user root;#" /etc/nginx/nginx.conf \
+    && sed -i "s#su npm npm#su root root#" \
+        /etc/logrotate.d/nginx-proxy-manager \
     && sed -i "s#root /app/frontend;#root /opt/nginx-proxy-manager/frontend;#" \
         /etc/nginx/conf.d/production.conf \
     && sed -i "s#table.string('id').notNull().primary();#table.string('id', 32).notNull().primary();#" \
