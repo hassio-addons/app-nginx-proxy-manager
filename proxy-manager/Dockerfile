@@ -56,6 +56,11 @@ RUN \
     \
     && cp -r /app/backend/. /opt/nginx-proxy-manager/ \
     \
+    && sed -i "s#\"version\": \"[^\"]*\"#\"version\": \"${NGINX_PROXY_MANAGER_VERSION#v}\"#" \
+        /opt/nginx-proxy-manager/package.json \
+    && grep -q "\"version\": \"${NGINX_PROXY_MANAGER_VERSION#v}\"" \
+        /opt/nginx-proxy-manager/package.json \
+    \
     && cd /opt/nginx-proxy-manager \
     && yarn install --frozen-lockfile \
     && rm -rf /opt/nginx-proxy-manager/config \
