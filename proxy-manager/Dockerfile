@@ -137,6 +137,7 @@ RUN \
         /tmp/* \
         /usr/lib/node_modules \
         /usr/local/share/.cache \
+        /var/cache/nginx \
         /var/lib/apt/lists/* \
         /var/lib/nginx \
         /var/log/nginx \
