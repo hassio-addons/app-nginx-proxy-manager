@@ -1,4 +1,4 @@
-From d2da98aeecf4c1a21207c161d3529ef5a8821a8e Mon Sep 17 00:00:00 2001
+From 604bd93b3f0ca12c8113ed1d5001e7845fe9fe8c Mon Sep 17 00:00:00 2001
 From: Franck Nijhof <opensource@frenck.dev>
 Date: Fri, 21 Aug 2026 15:05:00 +0200
 Subject: [PATCH 2/4] Patch redirect logs to docker output
@@ -167,10 +167,10 @@ index 0c1946d..c3581e5 100644
 -access_log /config/logs/fallback_stream_access.log stream;
 +access_log /proc/1/fd/1 stream;
 diff --git a/docker/rootfs/etc/nginx/nginx.conf b/docker/rootfs/etc/nginx/nginx.conf
-index ce474d3..a80147c 100644
+index 83cffa7..ba39d9b 100644
 --- a/docker/rootfs/etc/nginx/nginx.conf
 +++ b/docker/rootfs/etc/nginx/nginx.conf
-@@ -10,7 +10,7 @@ worker_processes auto;
+@@ -9,7 +9,7 @@ worker_processes auto;
  # Enables the use of JIT for regular expressions to speed-up their processing.
  pcre_jit on;
  

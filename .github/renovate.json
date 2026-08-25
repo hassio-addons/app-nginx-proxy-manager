@@ -69,10 +69,14 @@
       "automerge": true
     },
     {
+      "description": "nginx comes from the nginx project's own repository",
       "groupName": "NGINX",
       "matchDatasources": ["deb"],
+      "matchDepNames": ["nginx"],
       "automerge": true,
-      "matchDepNames": ["/^(lib)?nginx.*/"]
+      "registryUrls": [
+        "https://nginx.org/packages/mainline/debian?suite=trixie&components=nginx&binaryArch=amd64"
+      ]
     },
     {
       "groupName": "OpenSSL",

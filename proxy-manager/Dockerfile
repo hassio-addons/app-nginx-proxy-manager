@@ -18,12 +18,10 @@ RUN \
     && apt-get install -y --no-install-recommends \
         apache2-utils=2.4.68-1~deb13u1 \
         libcap2-bin=1:2.75-10+deb13u1+b1 \
-        libnginx-mod-stream=1.26.3-3+deb13u7 \
     # logrotate has been rebuilt on aarch64 but not amd64, so its version
     # carries a binNMU suffix on one architecture only. Match the Debian
     # revision and let the suffix vary.
         logrotate=3.22.0-1* \
-        nginx=1.26.3-3+deb13u7 \
         nodejs=20.19.2+dfsg-1+deb13u2 \
         openssl=3.5.6-1~deb13u2 \
         python3=3.13.5-1 \
@@ -32,11 +30,25 @@ RUN \
     && apt-get install -y --no-install-recommends \
         build-essential=12.12 \
         git=1:2.47.3-0+deb13u1 \
+        gnupg=2.4.7-21+deb13u1 \
         libffi-dev=3.4.8-2 \
         libssl-dev=3.5.6-1~deb13u2 \
         npm=9.2.0~ds1-3 \
         patch=2.8-2 \
         python3-dev=3.13.5-1 \
+    \
+    # Debian ships nginx 1.26.3, which is older than both the Alpine build this
+    # app used to ship and the OpenResty 1.29.2 upstream builds on. Take nginx
+    # from the nginx project's own repository instead. It compiles the stream
+    # module in statically, so no load_module directive is needed.
+    && curl -fsSL https://nginx.org/keys/nginx_signing.key \
+        | gpg --dearmor > /usr/share/keyrings/nginx-archive-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg]" \
+        "http://nginx.org/packages/mainline/debian trixie nginx" \
+        > /etc/apt/sources.list.d/nginx.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        nginx=1.31.4-1~trixie \
     \
     && npm install --global yarn@1.22.22 \
     \
@@ -105,6 +117,7 @@ RUN \
     && apt-get purge -y --auto-remove \
         build-essential \
         git \
+        gnupg \
         libffi-dev \
         libssl-dev \
         npm \

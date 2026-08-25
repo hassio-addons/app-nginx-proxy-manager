@@ -1,4 +1,4 @@
-From 34caf596df4dc9cb28eeae6695c561e45dffd75c Mon Sep 17 00:00:00 2001
+From ef3024a8708bad7c4a14b0167700cf95b0fac077 Mon Sep 17 00:00:00 2001
 From: Franck Nijhof <opensource@frenck.dev>
 Date: Tue, 25 Aug 2026 12:00:00 +0200
 Subject: [PATCH 4/4] Patch bump two DNS plugin pins that block certbot 5

@@ -1,4 +1,4 @@
-From 5a9304111afd1b5792eceedb7fdf546d5e1071c7 Mon Sep 17 00:00:00 2001
+From 25f46b514dbc440f9bdbefb23f09f43fbb4c3c3f Mon Sep 17 00:00:00 2001
 From: Franck Nijhof <opensource@frenck.dev>
 Date: Mon, 24 Aug 2026 12:00:00 +0200
 Subject: [PATCH 3/4] Patch certbot plugin install failures at startup
