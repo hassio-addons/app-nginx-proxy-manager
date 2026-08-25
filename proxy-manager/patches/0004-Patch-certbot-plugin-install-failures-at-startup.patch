@@ -1,0 +1,50 @@
+From 5a9304111afd1b5792eceedb7fdf546d5e1071c7 Mon Sep 17 00:00:00 2001
+From: Franck Nijhof <opensource@frenck.dev>
+Date: Mon, 24 Aug 2026 12:00:00 +0200
+Subject: [PATCH 4/4] Patch certbot plugin install failures at startup
+
+Upstream retries its whole startup chain every second when any step
+rejects, and a Certbot DNS plugin that cannot be installed rejects on
+every pass. With pip's cache disabled that re-downloads the plugin and
+all of its dependencies on each attempt, tens of gigabytes per hour,
+while the add-on gives no sign that anything is wrong.
+
+Logs the failure once per start and lets the rest of the app come up.
+Certificate operations for that provider still fail, visibly, when they
+are used.
+---
+ backend/setup.js | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/backend/setup.js b/backend/setup.js
+index 84f4279..5dee5b3 100644
+--- a/backend/setup.js
++++ b/backend/setup.js
+@@ -132,11 +132,22 @@ const setupCertbotPlugins = async () => {
+ 			return true;
+ 		});
+ 
+-		await installPlugins(plugins);
++		let installed = true;
++		try {
++			await installPlugins(plugins);
++		} catch (err) {
++			// Rejecting here aborts startup, which upstream retries every second.
++			// One plugin that cannot be installed then becomes an endless install
++			// loop that re-downloads every dependency on each attempt.
++			installed = false;
++			logger.error(`Certbot plugin installation failed, continuing anyway: ${err.message}`);
++		}
+ 
+ 		if (promises.length) {
+ 			await Promise.all(promises);
+-			logger.info(`Added Certbot plugins ${plugins.join(", ")}`);
++			if (installed) {
++				logger.info(`Added Certbot plugins ${plugins.join(", ")}`);
++			}
+ 		}
+ 	}
+ };
+-- 
+2.39.5
+

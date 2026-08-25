@@ -1,7 +1,7 @@
 From c2cf11aff40767696c1ea808c89d311bc0db46d5 Mon Sep 17 00:00:00 2001
 From: Franck Nijhof <opensource@frenck.dev>
 Date: Fri, 21 Aug 2026 15:05:01 +0200
-Subject: [PATCH 3/3] Patch npm certbot venv plugin handling
+Subject: [PATCH 3/4] Patch npm certbot venv plugin handling
 
 Upstream installs DNS plugins into a Python virtualenv at /opt/certbot.
 This add-on installs certbot from Alpine's package repository instead,

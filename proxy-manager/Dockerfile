@@ -34,6 +34,11 @@ RUN \
         python3=3.14.7-r1 \
         yarn=1.22.22-r1 \
     \
+    && python3 -c "from importlib.metadata import version; \
+        print('\n'.join(f'{p}=={version(p)}' \
+        for p in ('acme', 'certbot', 'josepy')))" \
+        > /etc/certbot-constraints.txt \
+    \
     && curl -fsSL -o /tmp/nginxproxymanager.tar.gz \
         "https://github.com/NginxProxyManager/nginx-proxy-manager/archive/${NGINX_PROXY_MANAGER_VERSION}.tar.gz" \
     && mkdir /app \
@@ -102,6 +107,9 @@ RUN \
         /var/log/nginx \
         /var/tmp/nginx \
         /var/www
+
+# Keep pip from replacing the Certbot stack that ships with the image
+ENV PIP_CONSTRAINT=/etc/certbot-constraints.txt
 
 # Copy root filesystem
 COPY rootfs /
