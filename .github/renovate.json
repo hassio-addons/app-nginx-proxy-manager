@@ -4,12 +4,12 @@
   "rebaseWhen": "behind-base-branch",
   "dependencyDashboard": true,
   "labels": ["dependencies"],
-  "commitMessagePrefix": "\u2b06\ufe0f",
+  "commitMessagePrefix": "⬆️",
   "commitMessageTopic": "{{depName}}",
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": ["/Dockerfile$", "/build.yaml$"],
+      "managerFilePatterns": ["//Dockerfile$/", "//build.yaml$/"],
       "matchStringsStrategy": "any",
       "matchStrings": [
         "ARG BUILD_FROM=(?<depName>.*?):(?<currentValue>.*?)\\s+",
@@ -19,7 +19,7 @@
     },
     {
       "customType": "regex",
-      "fileMatch": ["/Dockerfile$"],
+      "managerFilePatterns": ["//Dockerfile$/"],
       "matchStringsStrategy": "any",
       "matchStrings": [
         "\\s\\s(?<depName>[a-z0-9][a-z0-9-+.]+)=(?<currentValue>[0-9][a-zA-Z0-9-_.:+~]*)\\*?\\s+"
@@ -30,7 +30,7 @@
     },
     {
       "customType": "regex",
-      "fileMatch": ["/Dockerfile$"],
+      "managerFilePatterns": ["//Dockerfile$/"],
       "matchStrings": [
         "ARG CERTBOT_VERSION=[\"']?(?<currentValue>.+?)[\"']?\\s+"
       ],
@@ -39,7 +39,7 @@
     },
     {
       "customType": "regex",
-      "fileMatch": ["/Dockerfile$"],
+      "managerFilePatterns": ["//Dockerfile$/"],
       "matchStrings": [
         "ARG NGINX_PROXY_MANAGER_VERSION=[\"']?(?<currentValue>.+?)[\"']?\\s+"
       ],
