@@ -1,0 +1,50 @@
+From 34caf596df4dc9cb28eeae6695c561e45dffd75c Mon Sep 17 00:00:00 2001
+From: Franck Nijhof <opensource@frenck.dev>
+Date: Tue, 25 Aug 2026 12:00:00 +0200
+Subject: [PATCH 5/5] Patch bump two DNS plugin pins that block certbot 5
+
+Upstream pins certbot-dns-timeweb to ~=1.0.1 and certbot-dns-websupport
+to ~=2.0.1. Both of those releases cap certbot below 3, so neither can
+be installed against the certbot this app ships and both providers are
+unusable.
+
+Newer releases lift the cap and are drop-in: same entry point, same
+credentials keys, so existing credential files keep working.
+
+  certbot-dns-timeweb    2.0.0  requires certbot>=2.8
+  certbot-dns-websupport 5.0.0  requires certbot<6,>=3.2.0
+
+Temporary. Once either bump lands upstream this patch stops applying and
+the build fails, which is the signal to drop the entry here.
+
+  https://github.com/NginxProxyManager/nginx-proxy-manager/pull/5800
+  https://github.com/NginxProxyManager/nginx-proxy-manager/pull/5788
+---
+ backend/certbot/dns-plugins.json | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/backend/certbot/dns-plugins.json b/backend/certbot/dns-plugins.json
+index 2208194..f066336 100644
+--- a/backend/certbot/dns-plugins.json
++++ b/backend/certbot/dns-plugins.json
+@@ -637,7 +637,7 @@
+ 		"full_plugin_name": "dns-timeweb",
+ 		"name": "Timeweb Cloud",
+ 		"package_name": "certbot-dns-timeweb",
+-		"version": "~=1.0.1"
++		"version": "~=2.0.0"
+ 	},
+ 	"transip": {
+ 		"credentials": "dns_transip_username = my_username\ndns_transip_key_file = /etc/letsencrypt/transip-rsa.key",
+@@ -661,7 +661,7 @@
+ 		"full_plugin_name": "dns-websupport",
+ 		"name": "Websupport.sk",
+ 		"package_name": "certbot-dns-websupport",
+-		"version": "~=2.0.1"
++		"version": "~=5.0.0"
+ 	},
+ 	"wedos": {
+ 		"credentials": "dns_wedos_user = <wedos_registration>\ndns_wedos_auth = <wapi_password>",
+-- 
+2.39.5
+
