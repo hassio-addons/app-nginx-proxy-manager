@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.2
+ARG BUILD_FROM=ghcr.io/hassio-addons/debian-base:9.4.0
 # hadolint ignore=DL3006
 FROM ${BUILD_FROM}
 
@@ -9,32 +9,40 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 COPY patches/*.patch /usr/src/
 
 # Setup base
+ARG CERTBOT_VERSION="5.7.0"
 ARG NGINX_PROXY_MANAGER_VERSION="v2.15.1"
 # hadolint ignore=DL3003,DL3042
 RUN \
-    apk add --no-cache --virtual .build-dependencies \
-        build-base=0.5-r4 \
-        git=2.54.0-r0 \
-        libffi-dev=3.5.2-r1 \
-        openssl-dev=3.5.7-r0 \
-        patch=2.8-r0 \
-        python3-dev=3.14.7-r1 \
+    apt-get update \
     \
-    && apk add --no-cache \
-        apache2-utils=2.4.68-r0 \
-        certbot=5.6.0-r0 \
-        libcap=2.78-r0 \
-        logrotate=3.22.0-r0 \
-        nginx-mod-stream=1.30.4-r1 \
-        nginx=1.30.4-r1 \
-        nodejs=24.18.1-r0 \
-        npm=11.12.1-r0 \
-        openssl=3.5.7-r0 \
-        py3-pip=26.1.2-r0 \
-        python3=3.14.7-r1 \
-        yarn=1.22.22-r1 \
+    && apt-get install -y --no-install-recommends \
+        apache2-utils=2.4.68-1~deb13u1 \
+        libcap2-bin=1:2.75-10+deb13u1+b1 \
+        libnginx-mod-stream=1.26.3-3+deb13u7 \
+        logrotate=3.22.0-1 \
+        nginx=1.26.3-3+deb13u7 \
+        nodejs=20.19.2+dfsg-1+deb13u2 \
+        openssl=3.5.6-1~deb13u2 \
+        python3=3.13.5-1 \
+        python3-venv=3.13.5-1 \
     \
-    && python3 -c "from importlib.metadata import version; \
+    && apt-get install -y --no-install-recommends \
+        build-essential=12.12 \
+        git=1:2.47.3-0+deb13u1 \
+        libffi-dev=3.4.8-2 \
+        libssl-dev=3.5.6-1~deb13u2 \
+        npm=9.2.0~ds1-3 \
+        patch=2.8-2 \
+        python3-dev=3.13.5-1 \
+    \
+    && npm install --global yarn@1.22.22 \
+    \
+    && python3 -m venv /opt/certbot \
+    && /opt/certbot/bin/pip install --no-cache-dir \
+        "certbot==${CERTBOT_VERSION}" \
+    && ln -s /opt/certbot/bin/certbot /usr/bin/certbot \
+    \
+    && /opt/certbot/bin/python -c "from importlib.metadata import version; \
         print('\n'.join(f'{p}=={version(p)}' \
         for p in ('acme', 'certbot', 'josepy')))" \
         > /etc/certbot-constraints.txt \
@@ -89,8 +97,17 @@ RUN \
         /run/nginx \
     \
     && yarn cache clean \
+    && npm uninstall --global yarn \
     \
-    && apk del --purge .build-dependencies \
+    && apt-get purge -y --auto-remove \
+        build-essential \
+        git \
+        libffi-dev \
+        libssl-dev \
+        npm \
+        patch \
+        python3-dev \
+    && apt-get clean \
     \
     && rm -f -r \
         /app \
@@ -99,10 +116,12 @@ RUN \
         /opt/nginx-proxy-manager/node_modules/bcrypt/build \
         /root/.cache \
         /root/.node-gyp \
+        /root/.npm \
         /tmp/.[!.]* \
         /tmp/* \
         /usr/lib/node_modules \
         /usr/local/share/.cache \
+        /var/lib/apt/lists/* \
         /var/lib/nginx \
         /var/log/nginx \
         /var/tmp/nginx \

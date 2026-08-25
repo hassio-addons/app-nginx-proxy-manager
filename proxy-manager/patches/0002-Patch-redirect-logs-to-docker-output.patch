@@ -1,7 +1,7 @@
 From d2da98aeecf4c1a21207c161d3529ef5a8821a8e Mon Sep 17 00:00:00 2001
 From: Franck Nijhof <opensource@frenck.dev>
 Date: Fri, 21 Aug 2026 15:05:00 +0200
-Subject: [PATCH 2/5] Patch redirect logs to docker output
+Subject: [PATCH 2/4] Patch redirect logs to docker output
 
 Sends the NGINX access and error logs to the container's stdout so they
 show up in the add-on log, instead of writing them to files the user
