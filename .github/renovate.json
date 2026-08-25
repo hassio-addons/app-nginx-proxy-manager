@@ -4,7 +4,7 @@
   "rebaseWhen": "behind-base-branch",
   "dependencyDashboard": true,
   "labels": ["dependencies"],
-  "commitMessagePrefix": "⬆️",
+  "commitMessagePrefix": "\u2b06\ufe0f",
   "commitMessageTopic": "{{depName}}",
   "customManagers": [
     {
@@ -22,7 +22,7 @@
       "fileMatch": ["/Dockerfile$"],
       "matchStringsStrategy": "any",
       "matchStrings": [
-        "\\s\\s(?<depName>[a-z0-9][a-z0-9-+.]+)=(?<currentValue>[0-9][a-zA-Z0-9-_.:+~]*)\\s+"
+        "\\s\\s(?<depName>[a-z0-9][a-z0-9-+.]+)=(?<currentValue>[0-9][a-zA-Z0-9-_.:+~]*)\\*?\\s+"
       ],
       "versioningTemplate": "deb",
       "datasourceTemplate": "deb",

@@ -19,7 +19,10 @@ RUN \
         apache2-utils=2.4.68-1~deb13u1 \
         libcap2-bin=1:2.75-10+deb13u1+b1 \
         libnginx-mod-stream=1.26.3-3+deb13u7 \
-        logrotate=3.22.0-1 \
+    # logrotate has been rebuilt on aarch64 but not amd64, so its version
+    # carries a binNMU suffix on one architecture only. Match the Debian
+    # revision and let the suffix vary.
+        logrotate=3.22.0-1* \
         nginx=1.26.3-3+deb13u7 \
         nodejs=20.19.2+dfsg-1+deb13u2 \
         openssl=3.5.6-1~deb13u2 \
