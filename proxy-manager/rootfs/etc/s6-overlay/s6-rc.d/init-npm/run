@@ -22,23 +22,22 @@ mkdir -p \
     /tmp/nginx/cache/private \
     /tmp/nginx/cache/public \
     /tmp/nginx/proxy \
-    /var/lib/nginx \
     || bashio::exit.nok "Could not create the required directories"
 
-ln -sfT /tmp/nginx /var/tmp/nginx \
+# Nginx keeps its temporary paths under /var/cache/nginx. Point that at tmpfs,
+# so proxy buffering never writes to the container filesystem.
+ln -sfT /tmp/nginx /var/cache/nginx \
     || bashio::exit.nok "Could not link the Nginx temporary directory"
-ln -sfT /tmp/nginx /var/lib/nginx/tmp \
-    || bashio::exit.nok "Could not link the Nginx working directory"
 ln -sfT /config /opt/nginx-proxy-manager/config \
     || bashio::exit.nok "Could not link the app configuration directory"
 ln -sfT /config/letsencrypt /etc/letsencrypt \
     || bashio::exit.nok "Could not link the Let's Encrypt directory"
 
-# Nginx needs this file to be able to start.
-# It will not continously log into it.
-mkdir -p /var/lib/nginx/logs \
+# Nginx opens its compile-time default error log before it reads the
+# configuration, which redirects logging to stdout. It never writes here.
+mkdir -p /var/log/nginx \
     || bashio::exit.nok "Could not create the Nginx log directory"
-touch /var/lib/nginx/logs/error.log \
+touch /var/log/nginx/error.log \
     || bashio::exit.nok "Could not create the Nginx error log"
-chmod 644 /var/lib/nginx/logs/error.log \
+chmod 644 /var/log/nginx/error.log \
     || bashio::exit.nok "Could not set permissions on the Nginx error log"

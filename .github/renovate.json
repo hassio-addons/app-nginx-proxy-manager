@@ -4,14 +4,8 @@
   "rebaseWhen": "behind-base-branch",
   "dependencyDashboard": true,
   "labels": ["dependencies"],
-  "commitMessagePrefix": "⬆️",
+  "commitMessagePrefix": "\u2b06\ufe0f",
   "commitMessageTopic": "{{depName}}",
-  "customDatasources": {
-    "alpine": {
-      "defaultRegistryUrlTemplate": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/",
-      "format": "html"
-    }
-  },
   "customManagers": [
     {
       "customType": "regex",
@@ -28,12 +22,20 @@
       "fileMatch": ["/Dockerfile$"],
       "matchStringsStrategy": "any",
       "matchStrings": [
-        "\\s\\s(?<package>[a-z0-9][a-z0-9-_]+)=(?<currentValue>[a-z0-9-_.]+)\\s+"
+        "\\s\\s(?<depName>[a-z0-9][a-z0-9-+.]+)=(?<currentValue>[0-9][a-zA-Z0-9-_.:+~]*)\\*?\\s+"
       ],
-      "versioningTemplate": "loose",
-      "datasourceTemplate": "custom.alpine",
-      "depNameTemplate": "alpine_3_24/{{package}}",
-      "extractVersionTemplate": "^{{{package}}}-(?<version>\\d.*)\\.apk$"
+      "versioningTemplate": "deb",
+      "datasourceTemplate": "deb",
+      "registryUrlTemplate": "https://deb.debian.org/debian?suite=trixie&components=main&binaryArch=amd64"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": ["/Dockerfile$"],
+      "matchStrings": [
+        "ARG CERTBOT_VERSION=[\"']?(?<currentValue>.+?)[\"']?\\s+"
+      ],
+      "datasourceTemplate": "pypi",
+      "depNameTemplate": "certbot"
     },
     {
       "customType": "regex",
@@ -47,19 +49,13 @@
   ],
   "packageRules": [
     {
-      "matchDatasources": ["custom.alpine"],
-      "automerge": true
-    },
-    {
-      "description": "Packages that live in the Alpine community repository",
-      "matchDatasources": ["custom.alpine"],
-      "matchPackageNames": [
-        "alpine_3_24/certbot",
-        "alpine_3_24/npm",
-        "alpine_3_24/yarn"
-      ],
+      "description": "Debian packages also receive updates from the security suite",
+      "matchDatasources": ["deb"],
+      "automerge": true,
       "registryUrls": [
-        "https://dl-cdn.alpinelinux.org/alpine/v3.24/community/x86_64/"
+        "https://deb.debian.org/debian?suite=trixie&components=main&binaryArch=amd64",
+        "https://deb.debian.org/debian?suite=trixie-updates&components=main&binaryArch=amd64",
+        "https://security.debian.org/debian-security?suite=trixie-security&components=main&binaryArch=amd64"
       ]
     },
     {
@@ -73,22 +69,33 @@
       "automerge": true
     },
     {
+      "description": "nginx comes from the nginx project's own repository",
       "groupName": "NGINX",
-      "matchDatasources": ["custom.alpine"],
+      "matchDatasources": ["deb"],
+      "matchDepNames": ["nginx"],
       "automerge": true,
-      "matchDepNames": ["/^alpine.*/nginx.*/"]
+      "registryUrls": [
+        "https://nginx.org/packages/mainline/debian?suite=trixie&components=nginx&binaryArch=amd64"
+      ]
     },
     {
       "groupName": "OpenSSL",
-      "matchDatasources": ["custom.alpine"],
+      "matchDatasources": ["deb"],
       "automerge": true,
-      "matchDepNames": ["/^alpine.*/openssl.*/"]
+      "matchDepNames": ["/^(lib)?ssl.*/", "openssl"]
     },
     {
       "groupName": "Python",
-      "matchDatasources": ["custom.alpine"],
+      "matchDatasources": ["deb"],
       "automerge": true,
-      "matchDepNames": ["/^alpine.*/python.*/"]
+      "matchDepNames": ["/^python3.*/"]
+    },
+    {
+      "description": "Certbot is installed from PyPI, matching upstream",
+      "matchDatasources": ["pypi"],
+      "matchDepNames": ["certbot"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
     },
     {
       "matchDatasources": ["github-releases"],
