@@ -48,7 +48,7 @@ RUN \
         > /etc/apt/sources.list.d/nginx.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
-        nginx=1.31.4-1~trixie \
+        nginx=1.31.5-1~trixie \
     \
     && npm install --global yarn@1.22.22 \
     \
