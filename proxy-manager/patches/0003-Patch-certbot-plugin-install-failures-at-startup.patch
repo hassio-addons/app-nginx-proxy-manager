@@ -1,7 +1,7 @@
-From 25f46b514dbc440f9bdbefb23f09f43fbb4c3c3f Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Franck Nijhof <opensource@frenck.dev>
-Date: Mon, 24 Aug 2026 12:00:00 +0200
-Subject: [PATCH 3/4] Patch certbot plugin install failures at startup
+Date: Thu, 24 Sep 2026 16:27:39 +0200
+Subject: [PATCH 3/3] Patch certbot plugin install failures at startup
 
 Upstream retries its whole startup chain every second when any step
 rejects, and a Certbot DNS plugin that cannot be installed rejects on
@@ -13,14 +13,14 @@ Logs the failure once per start and lets the rest of the app come up.
 Certificate operations for that provider still fail, visibly, when they
 are used.
 ---
- backend/setup.js | 15 +++++++++++++--
- 1 file changed, 13 insertions(+), 2 deletions(-)
+ backend/setup.js | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
 
 diff --git a/backend/setup.js b/backend/setup.js
-index 84f4279..5dee5b3 100644
+index 9e8841e..abf8b80 100644
 --- a/backend/setup.js
 +++ b/backend/setup.js
-@@ -132,11 +132,22 @@ const setupCertbotPlugins = async () => {
+@@ -119,9 +119,18 @@ const setupCertbotPlugins = async () => {
  			return true;
  		});
  
@@ -36,15 +36,8 @@ index 84f4279..5dee5b3 100644
 +			logger.error(`Certbot plugin installation failed, continuing anyway: ${err.message}`);
 +		}
  
- 		if (promises.length) {
- 			await Promise.all(promises);
--			logger.info(`Added Certbot plugins ${plugins.join(", ")}`);
-+			if (installed) {
-+				logger.info(`Added Certbot plugins ${plugins.join(", ")}`);
-+			}
+-		if (plugins.length) {
++		if (installed && plugins.length) {
+ 			logger.info(`Added Certbot plugins ${plugins.join(", ")}`);
  		}
  	}
- };
--- 
-2.39.5
-

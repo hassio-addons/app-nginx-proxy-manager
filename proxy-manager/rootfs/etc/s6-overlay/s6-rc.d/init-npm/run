@@ -4,6 +4,11 @@
 # Home Assistant Community App: Nginx Proxy Manager
 # This file applies patches so the app becomes compatible
 # ==============================================================================
+declare directory
+declare file
+declare id
+declare prefix
+
 mkdir -p \
     /config/access \
     /config/custom_ssl \
@@ -22,6 +27,7 @@ mkdir -p \
     /tmp/nginx/cache/private \
     /tmp/nginx/cache/public \
     /tmp/nginx/proxy \
+    /var/log/nginx-proxy-manager \
     || bashio::exit.nok "Could not create the required directories"
 
 # Nginx keeps its temporary paths under /var/cache/nginx. Point that at tmpfs,
@@ -41,3 +47,22 @@ touch /var/log/nginx/error.log \
     || bashio::exit.nok "Could not create the Nginx error log"
 chmod 644 /var/log/nginx/error.log \
     || bashio::exit.nok "Could not set permissions on the Nginx error log"
+
+# The app writes a host's Nginx configuration only when that host is saved, so
+# an update that changes where the logs go leaves every existing host pointing
+# at the old destination and its logs missing from the viewer in the web
+# interface. Rewrite the log lines this app generated itself; a destination set
+# through the advanced configuration of a host is left alone.
+for directory in dead_host proxy_host redirection_host stream; do
+    prefix="${directory//_/-}"
+    for file in "/config/nginx/${directory}/"*.conf; do
+        [[ -f "${file}" ]] || continue
+        id="$(basename "${file}" .conf)"
+        [[ "${id}" =~ ^[0-9]+$ ]] || continue
+        sed -i -E \
+            -e "s#^(\s*)access_log (/proc/1/fd/1|/config/logs/${prefix}-${id}_access\.log) #\1access_log /var/log/nginx-proxy-manager/${prefix}-${id}_access.log #" \
+            -e "s#^(\s*)error_log (/proc/1/fd/1|/config/logs/${prefix}-${id}_error\.log) #\1error_log /var/log/nginx-proxy-manager/${prefix}-${id}_error.log #" \
+            "${file}" \
+            || bashio::exit.nok "Could not update the log paths of ${file}"
+    done
+done

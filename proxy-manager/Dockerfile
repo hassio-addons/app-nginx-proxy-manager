@@ -10,7 +10,7 @@ COPY patches/*.patch /usr/src/
 
 # Setup base
 ARG CERTBOT_VERSION="5.8.0"
-ARG NGINX_PROXY_MANAGER_VERSION="v2.15.1"
+ARG NGINX_PROXY_MANAGER_VERSION="v2.16.0"
 # hadolint ignore=DL3003,DL3042
 RUN \
     apt-get update \
@@ -22,7 +22,6 @@ RUN \
     # carries a binNMU suffix on one architecture only. Match the Debian
     # revision and let the suffix vary.
         logrotate=3.22.0-1* \
-        nodejs=20.19.2+dfsg-1+deb13u2 \
         openssl=3.5.7-1~deb13u2 \
         python3=3.13.5-1 \
         python3-venv=3.13.5-1 \
@@ -33,7 +32,6 @@ RUN \
         gnupg=2.4.7-21+deb13u1 \
         libffi-dev=3.4.8-2 \
         libssl-dev=3.5.7-1~deb13u2 \
-        npm=9.2.0~ds1-3 \
         patch=2.8-2 \
         python3-dev=3.13.5-1 \
     \
@@ -46,9 +44,20 @@ RUN \
     && echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg]" \
         "http://nginx.org/packages/mainline/debian trixie nginx" \
         > /etc/apt/sources.list.d/nginx.list \
+    \
+    # The app needs Node 22, while Debian ships Node 20 and its dependencies
+    # refuse to install on it. Take Node from the NodeSource repository. That
+    # package carries npm inside it, so no separate npm package is needed.
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+        | gpg --dearmor > /usr/share/keyrings/nodesource-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/nodesource-keyring.gpg]" \
+        "https://deb.nodesource.com/node_22.x nodistro main" \
+        > /etc/apt/sources.list.d/nodesource.list \
+    \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
         nginx=1.31.6-1~trixie \
+        nodejs=22.23.3-1nodesource1 \
     \
     && npm install --global yarn@1.22.22 \
     \
@@ -97,14 +106,21 @@ RUN \
     && cp -r /app/docker/rootfs/etc/nginx /etc/nginx \
     && rm -f /etc/nginx/conf.d/dev.conf \
     \
+    # Upstream renders the web interface configuration at every start from a
+    # template, so its port can be changed. This app always serves it on port
+    # 81, so render it once here instead.
+    && sed -e "s#{{NPM_ADMIN_PORT}}#81#g" \
+        -e "s#root /app/frontend;#root /opt/nginx-proxy-manager/frontend;#" \
+        /etc/nginx/conf.d/production.conf.template \
+        > /etc/nginx/conf.d/production.conf \
+    && rm -f /etc/nginx/conf.d/production.conf.template \
+    \
     && cp /app/docker/rootfs/etc/letsencrypt.ini /etc \
     && cp /app/docker/rootfs/etc/logrotate.d/nginx-proxy-manager /etc/logrotate.d \
     \
     && sed -i "s#user npm;#user root;#" /etc/nginx/nginx.conf \
     && sed -i "s#su npm npm#su root root#" \
         /etc/logrotate.d/nginx-proxy-manager \
-    && sed -i "s#root /app/frontend;#root /opt/nginx-proxy-manager/frontend;#" \
-        /etc/nginx/conf.d/production.conf \
     && sed -i "s#table.string('id').notNull().primary();#table.string('id', 32).notNull().primary();#" \
         /opt/nginx-proxy-manager/migrations/20190227065017_settings.js \
     \
@@ -120,7 +136,6 @@ RUN \
         gnupg \
         libffi-dev \
         libssl-dev \
-        npm \
         patch \
         python3-dev \
     && apt-get clean \
