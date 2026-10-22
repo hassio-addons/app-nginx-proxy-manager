@@ -56,7 +56,7 @@ RUN \
     \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
-        nginx=1.31.7-1~trixie \
+        nginx=1.31.8-1~trixie \
         nodejs=22.23.3-1nodesource1 \
     \
     && npm install --global yarn@1.22.22 \
