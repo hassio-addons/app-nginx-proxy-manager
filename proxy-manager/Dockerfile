@@ -22,7 +22,7 @@ RUN \
     # carries a binNMU suffix on one architecture only. Match the Debian
     # revision and let the suffix vary.
         logrotate=3.22.0-1* \
-        openssl=3.5.7-1~deb13u2 \
+        openssl=3.5.7-1~deb13u3 \
         python3=3.13.5-1 \
         python3-venv=3.13.5-1 \
     \
@@ -31,7 +31,7 @@ RUN \
         git=1:2.47.3-0+deb13u1 \
         gnupg=2.4.7-21+deb13u1 \
         libffi-dev=3.4.8-2 \
-        libssl-dev=3.5.7-1~deb13u2 \
+        libssl-dev=3.5.7-1~deb13u3 \
         patch=2.8-2 \
         python3-dev=3.13.5-1 \
     \
