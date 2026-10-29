@@ -9,7 +9,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 COPY patches/*.patch /usr/src/
 
 # Setup base
-ARG CERTBOT_VERSION="5.8.0"
+ARG CERTBOT_VERSION="5.9.0"
 ARG NGINX_PROXY_MANAGER_VERSION="v2.16.0"
 # hadolint ignore=DL3003,DL3042
 RUN \
