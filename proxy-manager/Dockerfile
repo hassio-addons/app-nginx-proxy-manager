@@ -32,7 +32,7 @@ RUN \
         gnupg=2.4.7-21+deb13u1 \
         libffi-dev=3.4.8-2 \
         libssl-dev=3.5.9-1~deb13u1 \
-        patch=2.8-2 \
+        patch=2.8-2+deb13u1 \
         python3-dev=3.13.5-1 \
     \
     # Debian ships nginx 1.26.3, which is older than both the Alpine build this
